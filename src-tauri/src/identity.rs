@@ -19,8 +19,7 @@ pub struct OrgState {
 
 impl AppState {
     pub fn new() -> Self {
-        // Generate device identity on first run (in production: persist + encrypt with PIN)
-        let secret = SecretKey::generate(&mut rand::rngs::OsRng);
+        let secret = SecretKey::generate();
         Self {
             secret,
             orgs: HashMap::new(),

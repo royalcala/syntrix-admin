@@ -2794,7 +2794,7 @@ dependencies = [
 [[package]]
 name = "iroh-docs"
 version = "0.100.0"
-source = "git+https://github.com/royalcala/iroh-docs?branch=feat%2Fquery-key-prefix-from#e1790f90fc1a96219585fe98d1acd5b5b415534e"
+source = "git+https://github.com/royalcala/iroh-docs?branch=syntrix#7aefcdd66b7a78be6fc3deaa541f8d55a3daaad7"
 dependencies = [
  "anyhow",
  "async-channel",

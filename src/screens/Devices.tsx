@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Send } from "lucide-react";
 
 const ROLE_OPTIONS = [
   { value: "sales", label: "Sales" },
@@ -37,6 +37,15 @@ export function Devices({ org }: { org: string }) {
   async function toggleActive(id: string, active: boolean) {
     await invoke("update_device", { org, nodeId: id, active: !active, role: null as unknown as string });
     load();
+  }
+
+  async function sendInvite(nodeId: string, role: string) {
+    try {
+      await invoke("send_invite", { org, nodeId, role });
+      alert("Invite sent successfully!");
+    } catch (e) {
+      alert("Failed to send invite: " + e);
+    }
   }
 
   return (
@@ -73,7 +82,7 @@ export function Devices({ org }: { org: string }) {
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border text-left">
-                  {["Node ID", "Name", "Person", "Role", "Status", ""].map((h) => (
+                  {["Node ID", "Name", "Person", "Role", "Status", "Actions", ""].map((h) => (
                     <th key={h} className="px-6 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -90,6 +99,9 @@ export function Devices({ org }: { org: string }) {
                       <Button variant="ghost" size="sm" onClick={() => toggleActive(d.node_id, d.active)}>
                         {d.active ? "Deactivate" : "Activate"}
                       </Button>
+                    </td>
+                    <td className="px-6 py-3">
+                      <Button variant="outline" size="sm" onClick={() => sendInvite(d.node_id, d.role)} disabled={!d.active}><Send size={14} /> Invite</Button>
                     </td>
                   </tr>
                 ))}

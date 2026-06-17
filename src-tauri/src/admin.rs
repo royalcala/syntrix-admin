@@ -111,3 +111,40 @@ pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Resul
         data_ticket.to_string(),
     ])
 }
+
+/// Send an org invitation directly to a client device via QUIC stream.
+pub async fn send_invite(
+    state: &AppState,
+    org: &str,
+    node_id_hex: &str,
+    role: &str,
+) -> anyhow::Result<()> {
+    let node_id_bytes = hex::decode(node_id_hex)?;
+    let node_id: [u8; 32] = node_id_bytes.as_slice().try_into()
+        .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
+    let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
+
+    let org_state = state.get_org(org)
+        .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
+    
+    let control_ticket = org_state.control_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let data_ticket = org_state.data_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+
+    let payload = serde_json::json!({
+        "org_name": org,
+        "role": role,
+        "control_ticket": control_ticket.to_string(),
+        "data_ticket": data_ticket.to_string(),
+    });
+
+    let endpoint = state.endpoint();
+    let addr = iroh::EndpointAddr::from_parts(peer, []);
+    let conn = endpoint.connect(addr, b"/syntrix/invite/1").await?;
+    let mut send = conn.open_uni().await?;
+    send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
+    send.finish()?;
+
+    Ok(())
+}

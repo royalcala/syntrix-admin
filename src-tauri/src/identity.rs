@@ -69,6 +69,7 @@ impl AppState {
     pub fn node_id(&self) -> NodeId { *self.secret.public().as_bytes() }
     pub fn api(&self) -> &iroh_docs::api::DocsApi { &self.docs_api }
     pub fn author(&self) -> iroh_docs::AuthorId { self.author }
+    pub fn endpoint(&self) -> &Endpoint { &self._endpoint }
     pub fn list_orgs(&self) -> Vec<String> { self.orgs.keys().cloned().collect() }
 
     pub fn add_org(&mut self, name: &str, control_doc: Doc, data_doc: Doc) {

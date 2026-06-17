@@ -89,6 +89,18 @@ fn network_status(state: tauri::State<'_, Mutex<AppState>>) -> Result<String, St
 }
 
 #[tauri::command]
+fn send_invite(
+    state: tauri::State<'_, Mutex<AppState>>,
+    org: String,
+    node_id: String,
+    role: String,
+) -> Result<(), String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    tauri::async_runtime::block_on(admin::send_invite(&state, &org, &node_id, &role))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn share_org(state: tauri::State<'_, Mutex<AppState>>, org: String) -> Result<Vec<String>, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     tauri::async_runtime::block_on(admin::share_org_tickets(&mut state, &org)).map_err(|e| e.to_string())
@@ -106,7 +118,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_node_id, list_orgs, create_org,
             add_device, update_device, list_devices, list_roles, network_status,
-            share_org,
+            share_org, send_invite,
         ])
         .run(tauri::generate_context!())
         .expect("error while running syntrix-admin");

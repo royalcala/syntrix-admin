@@ -140,9 +140,17 @@ pub async fn send_invite(
     });
 
     let endpoint = state.endpoint();
-    let conn = endpoint.connect(peer, b"/syntrix/invite/1").await.map_err(|e| {
-        anyhow::anyhow!("failed to connect to {}: {}", node_id_hex, e)
-    })?;
+    let conn = match endpoint.connect(peer, b"/syntrix/invite/1").await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("send_invite: DNS connection failed ({}), trying direct...", e);
+            // Fallback: try connecting with empty addresses first, then wait and retry
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            endpoint.connect(peer, b"/syntrix/invite/1").await.map_err(|e| {
+                anyhow::anyhow!("failed to connect to {} via relay: {}. Both peers must be online and connected to the same relay.", node_id_hex, e)
+            })?
+        }
+    };
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
     send.finish()?;

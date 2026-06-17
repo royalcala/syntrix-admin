@@ -18,7 +18,7 @@ export function Dashboard({ org }: { org: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="flex items-center gap-4 py-4">
             <div className="p-3 rounded-lg bg-brand/10"><Users size={20} className="text-brand" /></div>

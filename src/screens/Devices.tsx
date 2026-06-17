@@ -46,7 +46,7 @@ export function Devices({ org }: { org: string }) {
           <CardTitle>Add device</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-5 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
             <Input placeholder="Node ID (hex)" value={nodeId} onChange={(e) => setNodeId(e.target.value)} />
             <Input placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} />
             <Input placeholder="Person (groups devices)" value={person} onChange={(e) => setPerson(e.target.value)} />
@@ -69,7 +69,8 @@ export function Devices({ org }: { org: string }) {
           {devices.length === 0 ? (
             <p className="text-sm text-muted p-6">No devices registered. Add one above.</p>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border text-left">
                   {["Node ID", "Name", "Person", "Role", "Status", ""].map((h) => (
@@ -94,6 +95,7 @@ export function Devices({ org }: { org: string }) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>

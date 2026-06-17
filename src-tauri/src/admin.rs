@@ -107,7 +107,7 @@ pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Resul
         .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
 
     Ok(vec![
-        format!("control:{}", control_ticket),
-        format!("data:{}", data_ticket),
+        control_ticket.to_string(),
+        data_ticket.to_string(),
     ])
 }

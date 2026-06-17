@@ -15,10 +15,13 @@ export function ShareDialog({ org }: { org: string }) {
   }
 
   async function copyAll() {
+    // Join all tickets with newlines — client's join_org parses them
     await navigator.clipboard.writeText(tickets.join("\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  const combined = tickets.join("\n");
 
   return (
     <>
@@ -27,25 +30,22 @@ export function ShareDialog({ org }: { org: string }) {
       </Button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setOpen(false)}>
-          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Share {org}</h3>
-            <p className="text-sm text-muted mb-4">Share these tickets with users to invite them to the org.</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setOpen(false)}>
+          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-1">Invite to {org}</h3>
+            <p className="text-sm text-muted mb-4">
+              Copy this and send it to the user. They paste it in Syntrix Client to join.
+            </p>
 
-            <div className="space-y-3 mb-4">
-              {tickets.map((t, i) => (
-                <div key={i} className="bg-zinc-50 rounded-lg p-3">
-                  <p className="text-xs text-muted mb-1">{i === 0 ? "Control doc" : "Data doc"}</p>
-                  <code className="text-xs font-mono break-all">{t}</code>
-                </div>
-              ))}
+            <div className="bg-zinc-50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+              <code className="text-xs font-mono break-all whitespace-pre-wrap">{combined}</code>
             </div>
 
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Close</Button>
               <Button size="sm" onClick={copyAll}>
                 {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Copied" : "Copy all"}
+                {copied ? "Copied" : "Copy"}
               </Button>
             </div>
           </div>

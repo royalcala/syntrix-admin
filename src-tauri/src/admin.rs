@@ -1,125 +1,95 @@
 use crate::identity::AppState;
 use crate::{DeviceInfo, RoleInfo};
 
-// ── org_control writes ──
+pub async fn create_org(state: &mut AppState, name: &str) -> anyhow::Result<()> {
+    let api = state.api().clone();
+    let author = state.author();
 
-pub fn create_org(state: &AppState, name: &str) -> anyhow::Result<()> {
-    // In production: create namespaces org_<name>/control, /data, /public, /private
-    // Write initial org_control entries via iroh-docs
-    let _ = name;
-    let _ = state;
+    let control_doc = api.create().await?;
+    let data_doc = api.create().await?;
+
+    let node_id_hex = hex::encode(state.node_id());
+    let device_json = serde_json::json!({
+        "active": true, "role": "admin", "person": "admin",
+        "name": format!("Admin ({})", name),
+    });
+    control_doc.set_bytes(
+        author, format!("members/{}", node_id_hex).into_bytes(),
+        serde_json::to_vec(&device_json)?,
+    ).await?;
+
+    let admin_role = serde_json::json!({"can_open": ["*"], "can_write": ["*"]});
+    control_doc.set_bytes(author, b"roles/admin".to_vec(), serde_json::to_vec(&admin_role)?).await?;
+
+    let org_json = serde_json::json!({"name": name, "created_at": chrono::Utc::now().to_rfc3339()});
+    control_doc.set_bytes(author, b"org".to_vec(), serde_json::to_vec(&org_json)?).await?;
+
+    state.remember_device(name, &node_id_hex, "admin", "admin", &format!("Admin ({})", name), true);
+    state.add_org(name, control_doc, data_doc);
     Ok(())
 }
 
-pub fn add_device(
-    state: &AppState,
-    org: &str,
-    node_id: &str,
-    name: &str,
-    person: &str,
-    role: &str,
+pub async fn add_device(
+    state: &mut AppState, org: &str, node_id: &str, name: &str, person: &str, role: &str,
 ) -> anyhow::Result<()> {
-    // In production: write to org_<org>/control/members/<node_id>
-    let _ = (state, org, node_id, name, person, role);
-    Ok(())
-}
+    let org_state = state.get_org(org)
+        .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
+    let doc = &org_state.control_doc;
+    let author = state.author();
 
-pub fn update_device(
-    state: &AppState,
-    org: &str,
-    node_id: &str,
-    active: bool,
-    role: &str,
-) -> anyhow::Result<()> {
-    // In production: update org_<org>/control/members/<node_id>
-    let _ = (state, org, node_id, active, role);
-    Ok(())
-}
+    let device_json = serde_json::json!({"active": true, "role": role, "person": person, "name": name});
+    doc.set_bytes(author, format!("members/{}", node_id).into_bytes(),
+        serde_json::to_vec(&device_json)?,
+    ).await?;
 
-// ── org_control reads (stub — in production reads from iroh-docs) ──
-
-struct StubDevice {
-    node_id: String,
-    name: String,
-    person: String,
-    role: String,
-    active: bool,
-}
-
-struct StubRole {
-    name: String,
-    can_open: Vec<String>,
-    can_write: Vec<String>,
-}
-
-impl AppState {
-    fn stub_devices(&self, org: &str) -> Vec<StubDevice> {
-        let node_id = hex::encode(self.node_id());
-        if self.get_org(org).is_some() {
-            vec![StubDevice {
-                node_id: node_id.clone(),
-                name: "Admin (this device)".into(),
-                person: "admin".into(),
-                role: "admin".into(),
-                active: true,
-            }]
-        } else {
-            vec![]
-        }
+    let role_key = format!("roles/{}", role);
+    let existing = doc.get_exact(author, role_key.as_bytes(), false).await?;
+    if existing.is_none() {
+        let grants = default_role_grants(role);
+        doc.set_bytes(author, role_key.into_bytes(), serde_json::to_vec(&grants)?).await?;
     }
 
-    fn stub_roles(&self, org: &str) -> Vec<StubRole> {
-        if self.get_org(org).is_some() {
-            vec![
-                StubRole {
-                    name: "admin".into(),
-                    can_open: vec!["*".into()],
-                    can_write: vec!["*".into()],
-                },
-                StubRole {
-                    name: "sales".into(),
-                    can_open: vec!["org_data".into(), "org_public".into(), "org_control".into()],
-                    can_write: vec!["org_data".into()],
-                },
-                StubRole {
-                    name: "contabilidad".into(),
-                    can_open: vec!["org_facturas_*".into(), "org_data".into(), "org_public".into(), "org_control".into()],
-                    can_write: vec![],
-                },
-            ]
-        } else {
-            vec![]
-        }
+    state.remember_device(org, node_id, role, person, name, true);
+    Ok(())
+}
+
+fn default_role_grants(role: &str) -> serde_json::Value {
+    match role {
+        "admin" => serde_json::json!({"can_open": ["*"], "can_write": ["*"]}),
+        "sales" => serde_json::json!({"can_open": ["org_data", "org_public", "org_control"], "can_write": ["org_data"]}),
+        "contabilidad" => serde_json::json!({"can_open": ["org_facturas_*", "org_data", "org_public", "org_control"], "can_write": []}),
+        _ => serde_json::json!({"can_open": [], "can_write": []}),
     }
 }
 
-pub fn list_devices(state: &AppState, org: &str) -> anyhow::Result<Vec<DeviceInfo>> {
-    Ok(state
-        .stub_devices(org)
-        .into_iter()
-        .map(|d| DeviceInfo {
-            node_id: d.node_id,
-            active: d.active,
-            role: d.role,
-            person: d.person,
-            name: d.name,
-        })
-        .collect())
+pub async fn update_device(
+    state: &mut AppState, org: &str, node_id: &str, active: bool, role: Option<String>,
+) -> anyhow::Result<()> {
+    let org_state = state.get_org(org)
+        .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
+    let doc = &org_state.control_doc;
+    let author = state.author();
+
+    let key = format!("members/{}", node_id);
+    let mut value = serde_json::json!({"active": active});
+    if let Some(r) = role { value["role"] = serde_json::Value::String(r); }
+    doc.set_bytes(author, key.into_bytes(), serde_json::to_vec(&value)?).await?;
+
+    state.set_device_active(org, node_id, active);
+    Ok(())
 }
 
-pub fn list_roles(state: &AppState, org: &str) -> anyhow::Result<Vec<RoleInfo>> {
-    Ok(state
-        .stub_roles(org)
-        .into_iter()
-        .map(|r| RoleInfo {
-            name: r.name,
-            can_open: r.can_open,
-            can_write: r.can_write,
-        })
-        .collect())
+/// List devices from in-memory cache.
+pub async fn list_devices(state: &mut AppState, org: &str) -> anyhow::Result<Vec<DeviceInfo>> {
+    Ok(state.list_org_devices(org))
 }
 
-pub fn network_status(state: &AppState, _org: &str) -> anyhow::Result<String> {
-    let _ = state;
-    Ok("offline (iroh not connected yet)".into())
+/// List roles from in-memory cache (populated during add_device/create_org).
+pub async fn list_roles(state: &mut AppState, org: &str) -> anyhow::Result<Vec<RoleInfo>> {
+    let roles = state.list_org_roles(org);
+    Ok(roles)
+}
+
+pub fn network_status(_state: &AppState) -> String {
+    "online (iroh P2P node running)".into()
 }

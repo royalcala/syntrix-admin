@@ -1,55 +1,110 @@
 use std::collections::HashMap;
 
-use iroh::SecretKey;
+use iroh::{Endpoint, SecretKey, endpoint::presets};
 use iroh_syntrix_docs::NodeId;
+use iroh_docs::api::Doc;
+use crate::{DeviceInfo, RoleInfo};
 
-/// Application state shared across Tauri commands.
 pub struct AppState {
-    /// This device's Ed25519 secret key.
     secret: SecretKey,
-    /// Cached org → admin module state.
+    _endpoint: Endpoint,
+    _gossip: iroh_gossip::net::Gossip,
+    _store: iroh_blobs::store::mem::MemStore,
+    _router: iroh::protocol::Router,
+    docs_api: iroh_docs::api::DocsApi,
+    author: iroh_docs::AuthorId,
     orgs: HashMap<String, OrgState>,
-    unlocked: bool,
+    /// In-memory device cache: org → (node_id → DeviceInfo)
+    devices: HashMap<String, HashMap<String, DeviceInfo>>,
+    /// In-memory role cache: org → (role_name → RoleInfo)
+    roles: HashMap<String, HashMap<String, RoleInfo>>,
 }
 
 #[derive(Clone)]
 pub struct OrgState {
     pub name: String,
+    pub control_doc: Doc,
+    pub data_doc: Doc,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub async fn new() -> anyhow::Result<Self> {
         let secret = SecretKey::generate();
-        Self {
-            secret,
+        let ep = Endpoint::builder(presets::N0)
+            .secret_key(secret.clone())
+            .bind()
+            .await?;
+
+        let store = iroh_blobs::store::mem::MemStore::new();
+        let gossip = iroh_gossip::net::Gossip::builder().spawn(ep.clone());
+        let docs = iroh_docs::protocol::Docs::memory()
+            .spawn(ep.clone(), (*store).clone(), gossip.clone())
+            .await?;
+        let api = docs.api().clone();
+
+        let router = iroh::protocol::Router::builder(ep.clone())
+            .accept(iroh_blobs::ALPN, iroh_blobs::BlobsProtocol::new(&store, None))
+            .accept(iroh_gossip::ALPN, gossip.clone())
+            .accept(iroh_docs::ALPN, docs)
+            .spawn();
+
+        let author = api.author_create().await?;
+
+        Ok(Self {
+            secret, _endpoint: ep, _gossip: gossip, _store: store, _router: router,
+            docs_api: api, author,
             orgs: HashMap::new(),
-            unlocked: false,
+            devices: HashMap::new(),
+            roles: HashMap::new(),
+        })
+    }
+
+    pub fn node_id(&self) -> NodeId { *self.secret.public().as_bytes() }
+    pub fn api(&self) -> &iroh_docs::api::DocsApi { &self.docs_api }
+    pub fn author(&self) -> iroh_docs::AuthorId { self.author }
+    pub fn list_orgs(&self) -> Vec<String> { self.orgs.keys().cloned().collect() }
+
+    pub fn add_org(&mut self, name: &str, control_doc: Doc, data_doc: Doc) {
+        self.orgs.insert(name.to_string(), OrgState { name: name.to_string(), control_doc, data_doc });
+        self.devices.entry(name.to_string()).or_default();
+        self.roles.entry(name.to_string()).or_default();
+    }
+
+    pub fn get_org(&self, name: &str) -> Option<&OrgState> { self.orgs.get(name) }
+
+    pub fn remember_device(&mut self, org: &str, node_id: &str, role: &str, person: &str, name: &str, active: bool) {
+        self.devices.entry(org.into()).or_default().insert(node_id.into(), DeviceInfo {
+            node_id: node_id.into(), active, role: role.into(), person: person.into(), name: name.into(),
+        });
+        // Auto-add role if not cached
+        self.roles.entry(org.into()).or_default().entry(role.into()).or_insert_with(|| {
+            let grants = default_role_grants(role);
+            RoleInfo { name: role.into(), can_open: grants.can_open, can_write: grants.can_write }
+        });
+    }
+
+    pub fn set_device_active(&mut self, org: &str, node_id: &str, active: bool) {
+        if let Some(devs) = self.devices.get_mut(org) {
+            if let Some(d) = devs.get_mut(node_id) { d.active = active; }
         }
     }
 
-    pub fn node_id(&self) -> NodeId {
-        *self.secret.public().as_bytes()
+    pub fn list_org_devices(&self, org: &str) -> Vec<DeviceInfo> {
+        self.devices.get(org).map(|m| m.values().cloned().collect()).unwrap_or_default()
     }
 
-    pub fn unlock(&mut self, _pin: &str) -> anyhow::Result<()> {
-        // In production: derive key from PIN, decrypt stored capabilities
-        self.unlocked = true;
-        Ok(())
+    pub fn list_org_roles(&self, org: &str) -> Vec<RoleInfo> {
+        self.roles.get(org).map(|m| m.values().cloned().collect()).unwrap_or_default()
     }
+}
 
-    pub fn list_orgs(&self) -> Vec<String> {
-        self.orgs.keys().cloned().collect()
-    }
+struct RoleGrants { can_open: Vec<String>, can_write: Vec<String> }
 
-    pub fn ensure_org(&mut self, name: &str) -> &mut OrgState {
-        self.orgs
-            .entry(name.to_string())
-            .or_insert_with(|| OrgState {
-                name: name.to_string(),
-            })
-    }
-
-    pub fn get_org(&self, name: &str) -> Option<&OrgState> {
-        self.orgs.get(name)
+fn default_role_grants(role: &str) -> RoleGrants {
+    match role {
+        "admin" => RoleGrants { can_open: vec!["*".into()], can_write: vec!["*".into()] },
+        "sales" => RoleGrants { can_open: vec!["org_data".into(), "org_public".into(), "org_control".into()], can_write: vec!["org_data".into()] },
+        "contabilidad" => RoleGrants { can_open: vec!["org_facturas_*".into(), "org_data".into(), "org_public".into(), "org_control".into()], can_write: vec![] },
+        _ => RoleGrants { can_open: vec![], can_write: vec![] },
     }
 }

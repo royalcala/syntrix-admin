@@ -6,24 +6,71 @@ type Screen = "unlock" | "dashboard" | "devices" | "roles";
 function App() {
   const [screen, setScreen] = useState<Screen>("unlock");
   const [nodeId, setNodeId] = useState<string>("");
-  const [orgs, setOrgs] = useState<string[]>([]);
+  const [orgs, setOrgs] = useState<{name:string}[]>([]);
   const [activeOrg, setActiveOrg] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [tickets, setTickets] = useState<string[]>([]);
 
   useEffect(() => {
     invoke<string>("get_node_id").then(setNodeId).catch(() => {});
   }, []);
 
-  async function unlock(pin: string) {
+  async function refresh() {
+    const orgList: {name:string}[] = await invoke("list_orgs");
+    setOrgs(orgList);
+    if (orgList.length > 0 && !activeOrg) setActiveOrg(orgList[0].name);
+  }
+
+  async function createOrg(name: string) {
     try {
-      await invoke("unlock", { pin });
-      const orgList: string[] = await invoke("list_orgs");
-      setOrgs(orgList);
-      if (orgList.length > 0) setActiveOrg(orgList[0]);
-      setScreen("dashboard");
-    } catch (e) {
-      setError(String(e));
-    }
+      await invoke("create_org", { name });
+      await refresh();
+      setActiveOrg(name);
+    } catch (e) { setError(String(e)); }
+  }
+
+  async function shareOrg() {
+    if (!activeOrg) return;
+    try {
+      const t: string[] = await invoke("share_org", { org: activeOrg });
+      setTickets(t);
+    } catch (e) { setError(String(e)); }
+  }
+
+  if (screen === "unlock") {
+    return <UnlockScreen nodeId={nodeId} error={error} onCreateOrg={createOrg} />;
+  }
+
+  return (
+    <div style={{ padding: 20, fontFamily: "system-ui" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
+        <select value={activeOrg} onChange={e => setActiveOrg(e.target.value)}>
+          {orgs.map(o => <option key={o.name} value={o.name}>{o.name}</option>)}
+        </select>
+        <button onClick={() => setScreen("dashboard")}>Dashboard</button>
+        <button onClick={() => setScreen("devices")}>Devices</button>
+        <button onClick={() => setScreen("roles")}>Roles</button>
+        <button onClick={shareOrg} style={{background:"#e0f0ff"}}>Share</button>
+        <span style={{ marginLeft: "auto", color: "#666", fontSize: 14 }}>{nodeId.slice(0, 16)}...</span>
+        <button onClick={async () => { await createOrg(prompt("Org name:") || "new-org"); }}>+ New Org</button>
+      </div>
+      {tickets.length > 0 && (
+        <div style={{ background: "#fff3cd", padding: 12, marginBottom: 16, borderRadius: 4 }}>
+          <strong>Tickets para compartir {activeOrg}:</strong>
+          {tickets.map((t, i) => (
+            <div key={i} style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", marginTop: 4 }}>
+              {t.slice(0, 80)}...
+            </div>
+          ))}
+          <button onClick={() => setTickets([])} style={{ marginTop: 8 }}>Cerrar</button>
+        </div>
+      )}
+      {screen === "dashboard" && <Dashboard org={activeOrg} />}
+      {screen === "devices" && <DevicesScreen org={activeOrg} />}
+      {screen === "roles" && <RolesScreen org={activeOrg} />}
+    </div>
+  );
+}
   }
 
   async function createOrg(name: string) {
@@ -60,8 +107,7 @@ function App() {
   );
 }
 
-function UnlockScreen({ nodeId, error, onUnlock, onCreateOrg }: { nodeId: string; error: string; onUnlock: (pin: string) => void; onCreateOrg: (name: string) => void }) {
-  const [pin, setPin] = useState("");
+function UnlockScreen({ nodeId, error, onCreateOrg }: { nodeId: string; error: string; onCreateOrg: (name: string) => void }) {
   const [newOrg, setNewOrg] = useState("");
 
   return (
@@ -70,14 +116,8 @@ function UnlockScreen({ nodeId, error, onUnlock, onCreateOrg }: { nodeId: string
       <p style={{ color: "#666" }}>Device: {nodeId.slice(0, 16)}...</p>
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={{ marginTop: 20 }}>
-        <h3>Unlock</h3>
-        <input type="password" placeholder="PIN" value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === "Enter" && onUnlock(pin)} />
-        <button onClick={() => onUnlock(pin)}>Unlock</button>
-      </div>
-
       <div style={{ marginTop: 40 }}>
-        <h3>First time? Create org</h3>
+        <h3>Create organization</h3>
         <input placeholder="Org name" value={newOrg} onChange={e => setNewOrg(e.target.value)} />
         <button onClick={() => onCreateOrg(newOrg)}>Create</button>
       </div>

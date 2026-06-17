@@ -1,3 +1,5 @@
+use iroh_docs::api::protocol::{ShareMode, AddrInfoOptions};
+
 use crate::identity::AppState;
 use crate::{DeviceInfo, RoleInfo};
 
@@ -92,4 +94,20 @@ pub async fn list_roles(state: &mut AppState, org: &str) -> anyhow::Result<Vec<R
 
 pub fn network_status(_state: &AppState) -> String {
     "online (iroh P2P node running)".into()
+}
+
+/// Generate tickets for sharing an org's control + data docs.
+pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Result<Vec<String>> {
+    let org_state = state.get_org(org)
+        .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
+    
+    let control_ticket = org_state.control_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let data_ticket = org_state.data_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+
+    Ok(vec![
+        format!("control:{}", control_ticket),
+        format!("data:{}", data_ticket),
+    ])
 }

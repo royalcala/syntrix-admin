@@ -88,6 +88,12 @@ fn network_status(state: tauri::State<'_, Mutex<AppState>>) -> Result<String, St
     Ok(admin::network_status(&state))
 }
 
+#[tauri::command]
+fn share_org(state: tauri::State<'_, Mutex<AppState>>, org: String) -> Result<Vec<String>, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    tauri::async_runtime::block_on(admin::share_org_tickets(&mut state, &org)).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = tauri::async_runtime::block_on(async {
@@ -100,6 +106,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_node_id, list_orgs, create_org,
             add_device, update_device, list_devices, list_roles, network_status,
+            share_org,
         ])
         .run(tauri::generate_context!())
         .expect("error while running syntrix-admin");

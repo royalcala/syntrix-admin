@@ -140,8 +140,9 @@ pub async fn send_invite(
     });
 
     let endpoint = state.endpoint();
-    let addr = iroh::EndpointAddr::from_parts(peer, []);
-    let conn = endpoint.connect(addr, b"/syntrix/invite/1").await?;
+    let conn = endpoint.connect(peer, b"/syntrix/invite/1").await.map_err(|e| {
+        anyhow::anyhow!("failed to connect to {}: {}", node_id_hex, e)
+    })?;
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
     send.finish()?;

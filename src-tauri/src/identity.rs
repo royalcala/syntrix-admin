@@ -36,6 +36,7 @@ impl AppState {
             .secret_key(secret.clone())
             .bind()
             .await?;
+        ep.online().await;
 
         let store = iroh_blobs::store::mem::MemStore::new();
         let gossip = iroh_gossip::net::Gossip::builder().spawn(ep.clone());

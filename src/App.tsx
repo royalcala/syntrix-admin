@@ -98,7 +98,7 @@ function Layout({
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
                 location.pathname === item.href
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-accent"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
               <item.icon size={18} />

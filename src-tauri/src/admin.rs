@@ -113,16 +113,27 @@ pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Resul
 }
 
 /// Send an org invitation directly to a client device via QUIC stream.
+/// `endpoint_addr_json` is the JSON from client's `get_endpoint_addr` command.
 pub async fn send_invite(
     state: &AppState,
     org: &str,
-    node_id_hex: &str,
+    endpoint_addr_json: &str,
     role: &str,
 ) -> anyhow::Result<()> {
+    let addr_data: serde_json::Value = serde_json::from_str(endpoint_addr_json)?;
+    let node_id_hex = addr_data["node_id"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("invalid addr json: missing node_id"))?;
     let node_id_bytes = hex::decode(node_id_hex)?;
     let node_id: [u8; 32] = node_id_bytes.as_slice().try_into()
         .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
     let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
+
+    // Build EndpointAddr with explicit addresses (bypasses DNS)
+    let addrs: Vec<iroh::TransportAddr> = addr_data["addrs"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str()?.parse().ok()).collect())
+        .unwrap_or_default();
+    let addr = iroh::EndpointAddr::from_parts(peer, addrs);
 
     let org_state = state.get_org(org)
         .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
@@ -140,17 +151,9 @@ pub async fn send_invite(
     });
 
     let endpoint = state.endpoint();
-    let conn = match endpoint.connect(peer, b"/syntrix/invite/1").await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("send_invite: DNS connection failed ({}), trying direct...", e);
-            // Fallback: try connecting with empty addresses first, then wait and retry
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            endpoint.connect(peer, b"/syntrix/invite/1").await.map_err(|e| {
-                anyhow::anyhow!("failed to connect to {} via relay: {}. Both peers must be online and connected to the same relay.", node_id_hex, e)
-            })?
-        }
-    };
+    let conn = endpoint.connect(addr, b"/syntrix/invite/1").await.map_err(|e| {
+        anyhow::anyhow!("failed to connect to {}: {}. Make sure both peers are online.", node_id_hex, e)
+    })?;
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
     send.finish()?;

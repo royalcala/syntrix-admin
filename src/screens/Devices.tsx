@@ -16,14 +16,22 @@ const ROLE_OPTIONS = [
 
 export function Devices({ org }: { org: string }) {
   const [devices, setDevices] = useState<any[]>([]);
-  const [nodeId, setNodeId] = useState("");
+  const [deviceAddr, setDeviceAddr] = useState("");
   const [name, setName] = useState("");
   const [person, setPerson] = useState("");
   const [role, setRole] = useState("sales");
 
-  async function load() {
-    const d: any[] = await invoke("list_devices", { org });
-    setDevices(d);
+  async function add() {
+    if (!deviceAddr || !name || !person) return;
+    // Extract node_id from the addr JSON
+    let nodeId = deviceAddr;
+    try {
+      const addrJson = JSON.parse(deviceAddr);
+      nodeId = addrJson.node_id || deviceAddr;
+    } catch {}
+    await invoke("add_device", { org, nodeId, name, person, role });
+    setDeviceAddr(""); setName(""); setPerson(""); setRole("sales");
+    load();
   }
   useEffect(() => { load(); }, [org]);
 
@@ -41,7 +49,8 @@ export function Devices({ org }: { org: string }) {
 
   async function sendInvite(nodeId: string, role: string) {
     try {
-      await invoke("send_invite", { org, nodeId, role });
+      // Pass the full addr JSON (node_id + addrs) to connect directly
+      await invoke("send_invite", { org, endpointAddrJson: nodeId, role });
       alert("Invite sent successfully!");
     } catch (e) {
       alert("Failed to send invite: " + e);
@@ -56,11 +65,11 @@ export function Devices({ org }: { org: string }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-            <Input placeholder="Node ID (hex)" value={nodeId} onChange={(e) => setNodeId(e.target.value)} />
+            <Input placeholder="Device Address (JSON from client)" value={deviceAddr} onChange={(e) => setDeviceAddr(e.target.value)} />
             <Input placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} />
             <Input placeholder="Person (groups devices)" value={person} onChange={(e) => setPerson(e.target.value)} />
             <Select options={ROLE_OPTIONS} value={role} onChange={(e) => setRole(e.target.value)} />
-            <Button onClick={add} disabled={!nodeId || !name || !person}>
+            <Button onClick={add} disabled={!deviceAddr || !name || !person}>
               <Plus size={16} /> Add
             </Button>
           </div>

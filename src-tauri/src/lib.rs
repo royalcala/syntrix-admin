@@ -92,11 +92,11 @@ fn network_status(state: tauri::State<'_, Mutex<AppState>>) -> Result<String, St
 fn send_invite(
     state: tauri::State<'_, Mutex<AppState>>,
     org: String,
-    node_id: String,
+    endpoint_addr_json: String,
     role: String,
 ) -> Result<(), String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    tauri::async_runtime::block_on(admin::send_invite(&state, &org, &node_id, &role))
+    tauri::async_runtime::block_on(admin::send_invite(&state, &org, &endpoint_addr_json, &role))
         .map_err(|e| e.to_string())
 }
 

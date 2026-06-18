@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use iroh::{Endpoint, SecretKey, endpoint::presets};
+use iroh::{Endpoint, SecretKey, RelayMode, RelayMap, RelayConfig};
+use iroh::endpoint::presets::Minimal;
 use iroh_syntrix_docs::NodeId;
 use iroh_syntrix_docs::registry::NamespaceRegistry;
 use iroh_docs::api::Doc;
@@ -32,8 +33,13 @@ pub struct OrgState {
 impl AppState {
     pub async fn new() -> anyhow::Result<Self> {
         let secret = SecretKey::generate();
-        let ep = Endpoint::builder(presets::N0)
+        // Use our own relay (dev mode: http://127.0.0.1:3340)
+        let relay_url: iroh::RelayUrl = "http://127.0.0.1:3340".parse()?;
+        let relay_map: RelayMap = RelayConfig::new(relay_url, None).into();
+        
+        let ep = Endpoint::builder(Minimal)
             .secret_key(secret.clone())
+            .relay_mode(RelayMode::Custom(relay_map))
             .bind()
             .await?;
         ep.online().await;

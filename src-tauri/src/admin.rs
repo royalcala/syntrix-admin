@@ -121,7 +121,7 @@ pub async fn send_invite(
     role: &str,
 ) -> anyhow::Result<()> {
     // Try parsing as JSON (full address), fall back to raw hex node_id
-    let (peer, addr) = if let Ok(addr_data) = serde_json::from_str::<serde_json::Value>(endpoint_addr_json) {
+    let (peer, addrs, addr) = if let Ok(addr_data) = serde_json::from_str::<serde_json::Value>(endpoint_addr_json) {
         let node_id_hex = addr_data["node_id"].as_str()
             .ok_or_else(|| anyhow::anyhow!("invalid addr json: missing node_id"))?;
         let node_id_bytes = hex::decode(node_id_hex)?;
@@ -132,13 +132,12 @@ pub async fn send_invite(
             .as_array()
             .map(|a| a.iter().filter_map(|v| {
                 let s = v.as_str()?;
-                // Handle "ip:host:port" format from get_endpoint_addr
                 let addr_str = s.strip_prefix("ip:").unwrap_or(s);
                 addr_str.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
             }).collect())
             .unwrap_or_default();
-        let addr = iroh::EndpointAddr::from_parts(peer, addrs);
-        (peer, addr)
+        let addr = iroh::EndpointAddr::from_parts(peer, addrs.clone());
+        (peer, addrs, addr)
     } else {
         // Raw hex node_id — rely on DNS
         let node_id_bytes = hex::decode(endpoint_addr_json)?;
@@ -146,7 +145,7 @@ pub async fn send_invite(
             .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
         let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
         let addr = iroh::EndpointAddr::from_parts(peer, []);
-        (peer, addr)
+        (peer, vec![], addr)
     };
 
     let org_state = state.get_org(org)
@@ -165,9 +164,16 @@ pub async fn send_invite(
     });
 
     let endpoint = state.endpoint();
-    let conn = endpoint.connect(addr, b"/syntrix/invite/1").await.map_err(|e| {
-        anyhow::anyhow!("failed to connect to {}: {}. Make sure both peers are online.", endpoint_addr_json, e)
-    })?;
+    let conn = match endpoint.connect(peer, b"/syntrix/invite/1").await {
+        Ok(c) => c,
+        Err(_) => {
+            // DNS failed, try direct connection with explicit addresses
+            let addr = iroh::EndpointAddr::from_parts(peer, addrs);
+            endpoint.connect(addr, b"/syntrix/invite/1").await.map_err(|e| {
+                anyhow::anyhow!("failed to connect: {}. Both peers must be online.", e)
+            })?
+        }
+    };
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
     send.finish()?;

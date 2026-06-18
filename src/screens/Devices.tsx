@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Plus, RefreshCw, Send } from "lucide-react";
+import { toast } from "sonner";
 
 const ROLE_OPTIONS = [
   { value: "sales", label: "Sales" },
@@ -44,9 +45,9 @@ export function Devices({ org }: { org: string }) {
   async function sendInvite(deviceAddr: string, role: string) {
     try {
       await invoke("send_invite", { org, endpointAddrJson: deviceAddr, role });
-      alert("Invite sent successfully!");
+      toast.success("Invite sent successfully!");
     } catch (e) {
-      alert("Failed to send invite: " + e);
+      toast.error("Failed to send invite: " + e);
     }
   }
 

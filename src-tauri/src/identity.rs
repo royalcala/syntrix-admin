@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use iroh::{Endpoint, SecretKey, RelayMode, RelayMap, RelayConfig};
-use iroh::endpoint::presets::Minimal;
+use iroh::endpoint::presets::N0;
 use iroh_syntrix_docs::NodeId;
 use iroh_syntrix_docs::registry::NamespaceRegistry;
 use iroh_docs::api::Doc;
@@ -37,7 +37,7 @@ impl AppState {
         let relay_url: iroh::RelayUrl = "http://127.0.0.1:3340".parse()?;
         let relay_map: RelayMap = RelayConfig::new(relay_url, None).into();
         
-        let ep = Endpoint::builder(Minimal)
+        let ep = Endpoint::builder(N0)
             .secret_key(secret.clone())
             .relay_mode(RelayMode::Custom(relay_map))
             .bind_addr("127.0.0.1:0".parse::<std::net::SocketAddr>()?)?

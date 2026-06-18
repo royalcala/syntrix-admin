@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { LayoutDashboard, Users, Shield, Plus, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Select } from "./components/ui/select";
 import { Sheet } from "./components/ui/sheet";
@@ -9,6 +9,7 @@ import { Dashboard } from "./screens/Dashboard";
 import { Devices } from "./screens/Devices";
 import { Roles } from "./screens/Roles";
 import { CreateOrg } from "./screens/CreateOrg";
+import { Logs } from "./screens/Logs";
 import { ShareDialog } from "./screens/ShareDialog";
 import { ThemeToggle } from "./components/ThemeToggle";
 
@@ -65,6 +66,7 @@ function Layout({
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/devices", label: "Devices", icon: Users },
     { href: "/roles", label: "Roles", icon: Shield },
+    { href: "/logs", label: "Logs", icon: Terminal },
   ];
 
   const currentLabel = navItems.find((i) => i.href === location.pathname)?.label ?? "Dashboard";
@@ -152,6 +154,7 @@ function Layout({
             <Route index element={<Dashboard org={activeOrg} />} />
             <Route path="/devices" element={<Devices org={activeOrg} />} />
             <Route path="/roles" element={<Roles org={activeOrg} />} />
+            <Route path="/logs" element={<Logs />} />
           </Routes>
         </main>
       </div>

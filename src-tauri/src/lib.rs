@@ -107,11 +107,49 @@ fn share_org(state: tauri::State<'_, Mutex<AppState>>, org: String) -> Result<Ve
     tauri::async_runtime::block_on(admin::share_org_tickets(&mut state, &org)).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_logs() -> Result<String, String> {
+    let log_dir = dirs_next::data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("syntrix")
+        .join("logs");
+    let log_file = log_dir.join("syntrix-admin.log");
+    if log_file.exists() {
+        std::fs::read_to_string(log_file).map_err(|e| e.to_string())
+    } else {
+        Ok("No logs yet.".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter("iroh=debug,syntrix=debug")
+    // File logging (rotating daily, kept for 7 days)
+    let log_dir = dirs_next::data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("syntrix")
+        .join("logs");
+    std::fs::create_dir_all(&log_dir).ok();
+    
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "syntrix-admin.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    
+    // Console subscriber
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_filter(tracing_subscriber::EnvFilter::new("iroh=debug,syntrix=debug"));
+    
+    // File subscriber
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_filter(tracing_subscriber::EnvFilter::new("iroh=debug,syntrix=debug"));
+    
+    tracing_subscriber::registry()
+        .with(console_layer)
+        .with(file_layer)
         .init();
+    
+    // Leak the guard to keep the file writer alive for the app lifetime
+    std::mem::forget(_guard);
 
     let app_state = tauri::async_runtime::block_on(async {
         AppState::new().await.expect("failed to initialize iroh")
@@ -123,7 +161,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_node_id, list_orgs, create_org,
             add_device, update_device, list_devices, list_roles, network_status,
-            share_org, send_invite,
+            share_org, send_invite, get_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running syntrix-admin");

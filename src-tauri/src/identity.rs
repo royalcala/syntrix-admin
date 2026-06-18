@@ -40,6 +40,7 @@ impl AppState {
         let ep = Endpoint::builder(Minimal)
             .secret_key(secret.clone())
             .relay_mode(RelayMode::Custom(relay_map))
+            .bind_addr("127.0.0.1:0".parse::<std::net::SocketAddr>()?)?
             .bind()
             .await?;
         ep.online().await;

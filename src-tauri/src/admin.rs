@@ -182,6 +182,8 @@ pub async fn send_invite(
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;
     send.finish()?;
+    // Wait for client to read before closing connection (race condition fix)
+    let _ = conn.closed().await;
 
     Ok(())
 }

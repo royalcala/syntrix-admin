@@ -128,10 +128,20 @@ pub async fn send_invite(
         .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
     let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
 
-    // Build EndpointAddr with explicit addresses (bypasses DNS)
+    // Parse transport addresses from JSON array
     let addrs: Vec<iroh::TransportAddr> = addr_data["addrs"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str()?.parse().ok()).collect())
+        .map(|a| {
+            a.iter().filter_map(|v| {
+                let s = v.as_str()?;
+                // Try parsing as SocketAddr (Ip), or as relay URL
+                if let Ok(sa) = s.parse::<std::net::SocketAddr>() {
+                    Some(iroh::TransportAddr::Ip(sa))
+                } else {
+                    None // skip relay URLs for direct connect
+                }
+            }).collect()
+        })
         .unwrap_or_default();
     let addr = iroh::EndpointAddr::from_parts(peer, addrs);
 

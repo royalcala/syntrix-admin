@@ -109,6 +109,10 @@ fn share_org(state: tauri::State<'_, Mutex<AppState>>, org: String) -> Result<Ve
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter("iroh=debug,syntrix=debug")
+        .init();
+
     let app_state = tauri::async_runtime::block_on(async {
         AppState::new().await.expect("failed to initialize iroh")
     });

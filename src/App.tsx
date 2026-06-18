@@ -76,7 +76,7 @@ function Layout({
           <h1 className="text-lg font-bold tracking-tight">Syntrix</h1>
           <p className="text-xs text-muted mt-0.5">Admin Console</p>
         </div>
-        <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 rounded-md hover:bg-zinc-100">
+        <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 rounded-md hover:bg-accent">
           <X size={18} />
         </button>
       </div>
@@ -95,8 +95,8 @@ function Layout({
               onClick={() => { navigate(item.href); setSidebarOpen(false); }}
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
                 location.pathname === item.href
-                  ? "bg-brand/10 text-brand font-medium"
-                  : "text-zinc-600 hover:bg-zinc-100"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-accent"
               }`}
             >
               <item.icon size={18} />
@@ -120,21 +120,21 @@ function Layout({
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar (overlay) */}
       <Sheet open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
         {sidebarContent}
       </Sheet>
 
       {/* Desktop sidebar (fixed) */}
-      <aside className="hidden lg:flex w-64 bg-white border-r border-border flex-col fixed inset-y-0 left-0 z-30">
+      <aside className="hidden lg:flex w-64 bg-sidebar text-sidebar-foreground border-r border-border flex-col fixed inset-y-0 left-0 z-30">
         {sidebarContent}
       </aside>
 
       {/* Main area */}
       <div className="lg:pl-64">
-        <header className="h-16 border-b border-border bg-white flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 rounded-md hover:bg-zinc-100">
+        <header className="h-16 border-b border-border bg-background flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 rounded-md hover:bg-accent">
             <Menu size={20} />
           </button>
           <h2 className="text-lg font-semibold truncate">{currentLabel}</h2>
@@ -159,7 +159,7 @@ function Layout({
       {/* New Org Dialog */}
       {newOrgOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setNewOrgOpen(false)}>
-          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card rounded-xl shadow-lg max-w-sm w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-4">Create Organization</h3>
             <input
               className="w-full h-10 rounded-md border border-border px-3 py-2 text-sm mb-4"

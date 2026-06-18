@@ -95,11 +95,5 @@
   --sidebar-ring: 246 57% 60%;
 }
 
-* {
-  border-color: hsl(var(--border));
-}
-
-body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
-}
+* { border-color: hsl(var(--border)); }
+body { background-color: hsl(var(--background)); color: hsl(var(--foreground)); }

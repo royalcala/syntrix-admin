@@ -28,7 +28,7 @@ export function Roles({ org }: { org: string }) {
               {roles.map((r) => (
                 <div key={r.name} className="border border-border rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Shield size={16} className="text-brand" />
+                    <Shield size={16} className="text-primary" />
                     <h4 className="text-sm font-semibold uppercase tracking-wider">{r.name}</h4>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

@@ -23,17 +23,17 @@ export function CreateOrg({ nodeId, onCreated }: { nodeId: string; onCreated: ()
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-brand/5 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-muted to-primary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-4">
-            <Shield size={32} className="text-brand" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
+            <Shield size={32} className="text-primary" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Syntrix</h1>
           <p className="text-muted mt-2">Admin Console</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-border shadow-sm p-6">
+        <div className="bg-card rounded-xl border border-border shadow-sm p-6">
           <h2 className="text-lg font-semibold mb-1">Create your first organization</h2>
           <p className="text-sm text-muted mb-6">An org groups your devices, roles, and data namespaces.</p>
 
@@ -59,7 +59,7 @@ export function CreateOrg({ nodeId, onCreated }: { nodeId: string; onCreated: ()
         </div>
 
         <p className="text-center text-xs text-muted mt-6">
-          Device: <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono">{nodeId.slice(0, 16)}...</code>
+          Device: <code className="bg-secondary px-1.5 py-0.5 rounded text-xs font-mono">{nodeId.slice(0, 16)}...</code>
         </p>
       </div>
     </div>

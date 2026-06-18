@@ -31,13 +31,13 @@ export function ShareDialog({ org }: { org: string }) {
 
       {open && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setOpen(false)}>
-          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card rounded-xl shadow-lg max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-1">Invite to {org}</h3>
             <p className="text-sm text-muted mb-4">
               Copy this and send it to the user. They paste it in Syntrix Client to join.
             </p>
 
-            <div className="bg-zinc-50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+            <div className="bg-muted rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
               <code className="text-xs font-mono break-all whitespace-pre-wrap">{combined}</code>
             </div>
 

@@ -92,7 +92,7 @@ export function Devices({ org }: { org: string }) {
               </thead>
               <tbody>
                 {devices.map((d) => (
-                  <tr key={d.node_id} className="border-b border-border last:border-0 hover:bg-zinc-50 transition-colors" style={{ opacity: d.active ? 1 : 0.4 }}>
+                  <tr key={d.node_id} className="border-b border-border last:border-0 hover:bg-muted transition-colors" style={{ opacity: d.active ? 1 : 0.4 }}>
                     <td className="px-6 py-3 text-sm font-mono">{d.node_id.slice(0, 14)}...</td>
                     <td className="px-6 py-3 text-sm font-medium">{d.name}</td>
                     <td className="px-6 py-3 text-sm">{d.person}</td>

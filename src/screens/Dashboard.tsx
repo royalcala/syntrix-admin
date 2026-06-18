@@ -21,7 +21,7 @@ export function Dashboard({ org }: { org: string }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="flex items-center gap-4 py-4">
-            <div className="p-3 rounded-lg bg-brand/10"><Users size={20} className="text-brand" /></div>
+            <div className="p-3 rounded-lg bg-primary/10"><Users size={20} className="text-primary" /></div>
             <div>
               <p className="text-2xl font-bold">{devices.length}</p>
               <p className="text-sm text-muted">Total devices</p>

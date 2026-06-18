@@ -131,7 +131,10 @@ pub async fn send_invite(
         let addrs: Vec<iroh::TransportAddr> = addr_data["addrs"]
             .as_array()
             .map(|a| a.iter().filter_map(|v| {
-                v.as_str()?.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
+                let s = v.as_str()?;
+                // Handle "ip:host:port" format from get_endpoint_addr
+                let addr_str = s.strip_prefix("ip:").unwrap_or(s);
+                addr_str.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
             }).collect())
             .unwrap_or_default();
         let addr = iroh::EndpointAddr::from_parts(peer, addrs);

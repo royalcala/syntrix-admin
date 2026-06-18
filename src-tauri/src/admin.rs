@@ -172,10 +172,9 @@ pub async fn send_invite(
     let conn = match endpoint.connect(peer, b"/syntrix/invite/1").await {
         Ok(c) => c,
         Err(_) => {
-            // DNS failed, try direct connection with explicit addresses
             let addr = iroh::EndpointAddr::from_parts(peer, addrs);
             endpoint.connect(addr, b"/syntrix/invite/1").await.map_err(|e| {
-                anyhow::anyhow!("failed to connect: {}. Both peers must be online.", e)
+                anyhow::anyhow!("Could not reach this device. It may be offline, restarted (new ID), or already a member.")
             })?
         }
     };

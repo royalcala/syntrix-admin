@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { LayoutDashboard, Users, Shield, Plus, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, Shield, Plus, Menu, X } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Select } from "./components/ui/select";
 import { Sheet } from "./components/ui/sheet";
@@ -10,6 +10,7 @@ import { Devices } from "./screens/Devices";
 import { Roles } from "./screens/Roles";
 import { CreateOrg } from "./screens/CreateOrg";
 import { ShareDialog } from "./screens/ShareDialog";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 type OrgInfo = { name: string };
 
@@ -110,9 +111,10 @@ function Layout({
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           {nodeId.slice(0, 16)}...
         </div>
-        <button className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-lg w-full mt-1">
-          <LogOut size={16} /> Lock
-        </button>
+        <div className="flex items-center px-3 py-1">
+          <ThemeToggle />
+          <span className="text-xs text-muted-foreground ml-2">Toggle theme</span>
+        </div>
       </div>
     </>
   );

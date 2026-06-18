@@ -2,14 +2,14 @@ import { HTMLAttributes, forwardRef } from "react";
 
 export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className = "", ...props }, ref) => (
-    <div ref={ref} className={`rounded-xl border border-border bg-white shadow-sm ${className}`} {...props} />
+    <div ref={ref} className={`rounded-xl border bg-card text-card-foreground shadow-sm ${className}`} {...props} />
   ),
 );
 Card.displayName = "Card";
 
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className = "", ...props }, ref) => (
-    <div ref={ref} className={`px-6 py-5 border-b border-border flex items-center justify-between ${className}`} {...props} />
+    <div ref={ref} className={`px-6 py-5 border-b flex items-center justify-between ${className}`} {...props} />
   ),
 );
 CardHeader.displayName = "CardHeader";

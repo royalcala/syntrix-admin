@@ -48,6 +48,17 @@ function Layout({
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [newOrgOpen, setNewOrgOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+
+  async function createNewOrg() {
+    const name = newOrgName.trim() || "new-org";
+    await invoke("create_org", { name });
+    setActiveOrg(name);
+    setNewOrgName("");
+    setNewOrgOpen(false);
+    onOrgsChanged();
+  }
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -128,12 +139,7 @@ function Layout({
           <div className="ml-auto flex gap-2 items-center">
             <span className="hidden sm:inline text-xs text-muted mr-2">{nodeId.slice(0, 14)}...</span>
             <ShareDialog org={activeOrg} />
-            <Button size="sm" variant="outline" onClick={async () => {
-              const name = prompt("Org name:") || "new-org";
-              await invoke("create_org", { name });
-              setActiveOrg(name);
-              onOrgsChanged();
-            }}>
+            <Button size="sm" variant="outline" onClick={() => setNewOrgOpen(true)}>
               <Plus size={16} /> <span className="hidden sm:inline">New Org</span>
             </Button>
           </div>
@@ -147,6 +153,27 @@ function Layout({
           </Routes>
         </main>
       </div>
+
+      {/* New Org Dialog */}
+      {newOrgOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setNewOrgOpen(false)}>
+          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">Create Organization</h3>
+            <input
+              className="w-full h-10 rounded-md border border-border px-3 py-2 text-sm mb-4"
+              placeholder="Organization name"
+              value={newOrgName}
+              onChange={(e) => setNewOrgName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createNewOrg()}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setNewOrgOpen(false)}>Cancel</Button>
+              <Button size="sm" onClick={createNewOrg}>Create</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

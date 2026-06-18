@@ -21,26 +21,20 @@ export function Devices({ org }: { org: string }) {
   const [person, setPerson] = useState("");
   const [role, setRole] = useState("sales");
 
+  async function load() {
+    const d: any[] = await invoke("list_devices", { org });
+    setDevices(d);
+  }
+
   async function add() {
     if (!deviceAddr || !name || !person) return;
-    // Extract node_id from the addr JSON
     let nodeId = deviceAddr;
-    try {
-      const addrJson = JSON.parse(deviceAddr);
-      nodeId = addrJson.node_id || deviceAddr;
-    } catch {}
+    try { const addrJson = JSON.parse(deviceAddr); nodeId = addrJson.node_id || deviceAddr; } catch {}
     await invoke("add_device", { org, nodeId, name, person, role });
     setDeviceAddr(""); setName(""); setPerson(""); setRole("sales");
     load();
   }
   useEffect(() => { load(); }, [org]);
-
-  async function add() {
-    if (!nodeId || !name || !person) return;
-    await invoke("add_device", { org, nodeId, name, person, role });
-    setNodeId(""); setName(""); setPerson(""); setRole("sales");
-    load();
-  }
 
   async function toggleActive(id: string, active: boolean) {
     await invoke("update_device", { org, nodeId: id, active: !active, role: null as unknown as string });

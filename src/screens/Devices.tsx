@@ -30,7 +30,7 @@ export function Devices({ org }: { org: string }) {
     if (!deviceAddr || !name || !person) return;
     let nodeId = deviceAddr;
     try { const addrJson = JSON.parse(deviceAddr); nodeId = addrJson.node_id || deviceAddr; } catch {}
-    await invoke("add_device", { org, nodeId, name, person, role });
+    await invoke("add_device", { org, nodeId, name, person, role, deviceAddr });
     setDeviceAddr(""); setName(""); setPerson(""); setRole("sales");
     load();
   }
@@ -41,10 +41,9 @@ export function Devices({ org }: { org: string }) {
     load();
   }
 
-  async function sendInvite(nodeId: string, role: string) {
+  async function sendInvite(deviceAddr: string, role: string) {
     try {
-      // Pass the full addr JSON (node_id + addrs) to connect directly
-      await invoke("send_invite", { org, endpointAddrJson: nodeId, role });
+      await invoke("send_invite", { org, endpointAddrJson: deviceAddr, role });
       alert("Invite sent successfully!");
     } catch (e) {
       alert("Failed to send invite: " + e);
@@ -104,7 +103,7 @@ export function Devices({ org }: { org: string }) {
                       </Button>
                     </td>
                     <td className="px-6 py-3">
-                      <Button variant="outline" size="sm" onClick={() => sendInvite(d.node_id, d.role)} disabled={!d.active}><Send size={14} /> Invite</Button>
+                      <Button variant="outline" size="sm" onClick={() => sendInvite(d.device_addr || d.node_id, d.role)} disabled={!d.active}><Send size={14} /> Invite</Button>
                     </td>
                   </tr>
                 ))}

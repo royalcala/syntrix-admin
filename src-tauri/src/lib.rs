@@ -14,6 +14,7 @@ pub struct DeviceInfo {
     pub role: String,
     pub person: String,
     pub name: String,
+    pub device_addr: String, // full addr JSON for QUIC connections
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -51,11 +52,11 @@ fn create_org(state: tauri::State<'_, Mutex<AppState>>, name: String) -> Result<
 #[tauri::command]
 fn add_device(
     state: tauri::State<'_, Mutex<AppState>>,
-    org: String, node_id: String, name: String, person: String, role: String,
+    org: String, node_id: String, name: String, person: String, role: String, device_addr: Option<String>,
 ) -> Result<(), String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     tauri::async_runtime::block_on(
-        admin::add_device(&mut state, &org, &node_id, &name, &person, &role)
+        admin::add_device(&mut state, &org, &node_id, &name, &person, &role, &device_addr.unwrap_or_default())
     ).map_err(|e| e.to_string())
 }
 

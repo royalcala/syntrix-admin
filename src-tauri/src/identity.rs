@@ -81,10 +81,11 @@ impl AppState {
 
     pub fn get_org(&self, name: &str) -> Option<&OrgState> { self.orgs.get(name) }
 
-    pub fn remember_device(&mut self, org: &str, node_id: &str, role: &str, person: &str, name: &str, active: bool) {
+    pub fn remember_device(&mut self, org: &str, node_id: &str, role: &str, person: &str, name: &str, active: bool, device_addr: &str) {
         // Update in-memory cache
         self.devices.entry(org.into()).or_default().insert(node_id.into(), DeviceInfo {
             node_id: node_id.into(), active, role: role.into(), person: person.into(), name: name.into(),
+            device_addr: device_addr.into(),
         });
         // Update namespace registry (accept_cb reads this)
         if let Ok(mut reg) = self.registry.write() {

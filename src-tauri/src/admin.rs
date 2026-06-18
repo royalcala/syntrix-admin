@@ -26,13 +26,13 @@ pub async fn create_org(state: &mut AppState, name: &str) -> anyhow::Result<()> 
     let org_json = serde_json::json!({"name": name, "created_at": chrono::Utc::now().to_rfc3339()});
     control_doc.set_bytes(author, b"org".to_vec(), serde_json::to_vec(&org_json)?).await?;
 
-    state.remember_device(name, &node_id_hex, "admin", "admin", &format!("Admin ({})", name), true);
+    state.remember_device(name, &node_id_hex, "admin", "admin", &format!("Admin ({})", name), true, "");
     state.add_org(name, control_doc, data_doc);
     Ok(())
 }
 
 pub async fn add_device(
-    state: &mut AppState, org: &str, node_id: &str, name: &str, person: &str, role: &str,
+    state: &mut AppState, org: &str, node_id: &str, name: &str, person: &str, role: &str, device_addr: &str,
 ) -> anyhow::Result<()> {
     let org_state = state.get_org(org)
         .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
@@ -51,7 +51,7 @@ pub async fn add_device(
         doc.set_bytes(author, role_key.into_bytes(), serde_json::to_vec(&grants)?).await?;
     }
 
-    state.remember_device(org, node_id, role, person, name, true);
+    state.remember_device(org, node_id, role, person, name, true, device_addr);
     Ok(())
 }
 
@@ -112,38 +112,39 @@ pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Resul
     ])
 }
 
-/// Send an org invitation directly to a client device via QUIC stream.
-/// `endpoint_addr_json` is the JSON from client's `get_endpoint_addr` command.
+/// Send an org invitation to a client device.
+/// Accepts either a JSON with node_id + addrs, or just a hex node_id.
 pub async fn send_invite(
     state: &AppState,
     org: &str,
     endpoint_addr_json: &str,
     role: &str,
 ) -> anyhow::Result<()> {
-    let addr_data: serde_json::Value = serde_json::from_str(endpoint_addr_json)?;
-    let node_id_hex = addr_data["node_id"].as_str()
-        .ok_or_else(|| anyhow::anyhow!("invalid addr json: missing node_id"))?;
-    let node_id_bytes = hex::decode(node_id_hex)?;
-    let node_id: [u8; 32] = node_id_bytes.as_slice().try_into()
-        .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
-    let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
-
-    // Parse transport addresses from JSON array
-    let addrs: Vec<iroh::TransportAddr> = addr_data["addrs"]
-        .as_array()
-        .map(|a| {
-            a.iter().filter_map(|v| {
-                let s = v.as_str()?;
-                // Try parsing as SocketAddr (Ip), or as relay URL
-                if let Ok(sa) = s.parse::<std::net::SocketAddr>() {
-                    Some(iroh::TransportAddr::Ip(sa))
-                } else {
-                    None // skip relay URLs for direct connect
-                }
-            }).collect()
-        })
-        .unwrap_or_default();
-    let addr = iroh::EndpointAddr::from_parts(peer, addrs);
+    // Try parsing as JSON (full address), fall back to raw hex node_id
+    let (peer, addr) = if let Ok(addr_data) = serde_json::from_str::<serde_json::Value>(endpoint_addr_json) {
+        let node_id_hex = addr_data["node_id"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("invalid addr json: missing node_id"))?;
+        let node_id_bytes = hex::decode(node_id_hex)?;
+        let node_id: [u8; 32] = node_id_bytes.as_slice().try_into()
+            .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
+        let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
+        let addrs: Vec<iroh::TransportAddr> = addr_data["addrs"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| {
+                v.as_str()?.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
+            }).collect())
+            .unwrap_or_default();
+        let addr = iroh::EndpointAddr::from_parts(peer, addrs);
+        (peer, addr)
+    } else {
+        // Raw hex node_id — rely on DNS
+        let node_id_bytes = hex::decode(endpoint_addr_json)?;
+        let node_id: [u8; 32] = node_id_bytes.as_slice().try_into()
+            .map_err(|_| anyhow::anyhow!("invalid node_id length"))?;
+        let peer: iroh::PublicKey = iroh::PublicKey::from_bytes(&node_id)?;
+        let addr = iroh::EndpointAddr::from_parts(peer, []);
+        (peer, addr)
+    };
 
     let org_state = state.get_org(org)
         .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;

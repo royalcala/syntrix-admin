@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Plus, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -62,7 +62,16 @@ export function Devices({ org }: { org: string }) {
             <Input placeholder="Device Address (JSON from client)" value={deviceAddr} onChange={(e) => setDeviceAddr(e.target.value)} />
             <Input placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} />
             <Input placeholder="Person (groups devices)" value={person} onChange={(e) => setPerson(e.target.value)} />
-            <Select options={ROLE_OPTIONS} value={role} onChange={(e) => setRole(e.target.value)} />
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={add} disabled={!deviceAddr || !name || !person}>
               <Plus size={16} /> Add
             </Button>

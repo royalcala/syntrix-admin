@@ -3,7 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal } from "lucide-react";
 import { Button } from "./components/ui/button";
-import { Select } from "./components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./components/ui/select";
 import { Sheet } from "./components/ui/sheet";
 import { Dashboard } from "./screens/Dashboard";
 import { Devices } from "./screens/Devices";
@@ -84,12 +84,16 @@ function Layout({
       </div>
 
       <div className="px-3 py-4">
-        <Select
-          options={orgs.map((o) => ({ value: o.name, label: o.name }))}
-          value={activeOrg}
-          onChange={(e) => { setActiveOrg(e.target.value); setSidebarOpen(false); }}
-          className="mb-4"
-        />
+        <Select value={activeOrg} onValueChange={(v) => { setActiveOrg(v); setSidebarOpen(false); }}>
+          <SelectTrigger className="mb-4">
+            <SelectValue placeholder="Select org" />
+          </SelectTrigger>
+          <SelectContent>
+            {orgs.map((o) => (
+              <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => (
             <button

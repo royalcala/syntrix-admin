@@ -163,7 +163,7 @@ pub async fn send_invite(
 
     let endpoint = state.endpoint();
     let conn = endpoint.connect(addr, b"/syntrix/invite/1").await.map_err(|e| {
-        anyhow::anyhow!("failed to connect to {}: {}. Make sure both peers are online.", node_id_hex, e)
+        anyhow::anyhow!("failed to connect to {}: {}. Make sure both peers are online.", endpoint_addr_json, e)
     })?;
     let mut send = conn.open_uni().await?;
     send.write_all(serde_json::to_vec(&payload)?.as_slice()).await?;

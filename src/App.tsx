@@ -131,6 +131,7 @@ function Layout({
             <Button size="sm" variant="outline" onClick={async () => {
               const name = prompt("Org name:") || "new-org";
               await invoke("create_org", { name });
+              setActiveOrg(name);
               onOrgsChanged();
             }}>
               <Plus size={16} /> <span className="hidden sm:inline">New Org</span>

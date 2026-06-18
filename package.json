@@ -31,6 +31,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vite-plugin-react-click-to-component": "^4.2.2"
   }
 }

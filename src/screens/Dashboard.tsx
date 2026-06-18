@@ -24,7 +24,7 @@ export function Dashboard({ org }: { org: string }) {
             <div className="p-3 rounded-lg bg-primary/10"><Users size={20} className="text-primary" /></div>
             <div>
               <p className="text-2xl font-bold">{devices.length}</p>
-              <p className="text-sm text-muted">Total devices</p>
+              <p className="text-sm text-muted-foreground">Total devices</p>
             </div>
           </CardContent>
         </Card>
@@ -33,7 +33,7 @@ export function Dashboard({ org }: { org: string }) {
             <div className="p-3 rounded-lg bg-emerald-50"><Activity size={20} className="text-emerald-600" /></div>
             <div>
               <p className="text-2xl font-bold">{active}</p>
-              <p className="text-sm text-muted">Active devices</p>
+              <p className="text-sm text-muted-foreground">Active devices</p>
             </div>
           </CardContent>
         </Card>
@@ -44,7 +44,7 @@ export function Dashboard({ org }: { org: string }) {
             </div>
             <div>
               <p className="text-2xl font-bold">{online ? "Online" : "Offline"}</p>
-              <p className="text-sm text-muted">P2P network</p>
+              <p className="text-sm text-muted-foreground">P2P network</p>
             </div>
           </CardContent>
         </Card>
@@ -54,14 +54,14 @@ export function Dashboard({ org }: { org: string }) {
         <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
         <CardContent>
           {devices.length === 0 ? (
-            <p className="text-sm text-muted">No devices registered yet. Add devices from the Devices tab.</p>
+            <p className="text-sm text-muted-foreground">No devices registered yet. Add devices from the Devices tab.</p>
           ) : (
             <div className="space-y-2">
               {devices.slice(0, 5).map((d, i) => (
                 <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                   <div>
                     <p className="text-sm font-medium">{d.name}</p>
-                    <p className="text-xs text-muted">{d.role} · {d.person}</p>
+                    <p className="text-xs text-muted-foreground">{d.role} · {d.person}</p>
                   </div>
                   <Badge variant={d.active ? "default" : "secondary"}>{d.active ? "active" : "inactive"}</Badge>
                 </div>

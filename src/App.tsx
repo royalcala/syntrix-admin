@@ -76,7 +76,7 @@ function Layout({
       <div className="px-6 py-5 border-b border-border flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-tight">Syntrix</h1>
-          <p className="text-xs text-muted mt-0.5">Admin Console</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Admin Console</p>
         </div>
         <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 rounded-md hover:bg-accent">
           <X size={18} />
@@ -113,7 +113,7 @@ function Layout({
       </div>
 
       <div className="mt-auto px-3 py-4 border-t border-border">
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
+        <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           {nodeId.slice(0, 16)}...
         </div>
@@ -145,7 +145,7 @@ function Layout({
           </button>
           <h2 className="text-lg font-semibold truncate">{currentLabel}</h2>
           <div className="ml-auto flex gap-2 items-center">
-            <span className="hidden sm:inline text-xs text-muted mr-2">{nodeId.slice(0, 14)}...</span>
+            <span className="hidden sm:inline text-xs text-muted-foreground mr-2">{nodeId.slice(0, 14)}...</span>
             <ShareDialog org={activeOrg} />
             <Button size="sm" variant="outline" onClick={() => setNewOrgOpen(true)}>
               <Plus size={16} /> <span className="hidden sm:inline">New Org</span>

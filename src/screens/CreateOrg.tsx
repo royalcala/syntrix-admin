@@ -30,12 +30,12 @@ export function CreateOrg({ nodeId, onCreated }: { nodeId: string; onCreated: ()
             <Shield size={32} className="text-primary" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Syntrix</h1>
-          <p className="text-muted mt-2">Admin Console</p>
+          <p className="text-muted-foreground mt-2">Admin Console</p>
         </div>
 
         <div className="bg-card rounded-xl border border-border shadow-sm p-6">
           <h2 className="text-lg font-semibold mb-1">Create your first organization</h2>
-          <p className="text-sm text-muted mb-6">An org groups your devices, roles, and data namespaces.</p>
+          <p className="text-sm text-muted-foreground mb-6">An org groups your devices, roles, and data namespaces.</p>
 
           <div className="space-y-4">
             <div>
@@ -58,7 +58,7 @@ export function CreateOrg({ nodeId, onCreated }: { nodeId: string; onCreated: ()
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted mt-6">
+        <p className="text-center text-xs text-muted-foreground mt-6">
           Device: <code className="bg-secondary px-1.5 py-0.5 rounded text-xs font-mono">{nodeId.slice(0, 16)}...</code>
         </p>
       </div>

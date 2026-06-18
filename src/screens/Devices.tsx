@@ -88,14 +88,14 @@ export function Devices({ org }: { org: string }) {
         </CardHeader>
         <CardContent className="p-0">
           {devices.length === 0 ? (
-            <p className="text-sm text-muted p-6">No devices registered. Add one above.</p>
+            <p className="text-sm text-muted-foreground p-6">No devices registered. Add one above.</p>
           ) : (
             <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border text-left">
                   {["Node ID", "Name", "Person", "Role", "Status", "Actions", ""].map((h) => (
-                    <th key={h} className="px-6 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
+                    <th key={h} className="px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>

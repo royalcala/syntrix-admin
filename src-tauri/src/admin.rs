@@ -132,8 +132,13 @@ pub async fn send_invite(
             .as_array()
             .map(|a| a.iter().filter_map(|v| {
                 let s = v.as_str()?;
-                let addr_str = s.strip_prefix("ip:").unwrap_or(s);
-                addr_str.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
+                if let Some(relay_str) = s.strip_prefix("relay:") {
+                    // Include relay URL for relay-based discovery
+                    relay_str.parse::<iroh::RelayUrl>().ok().map(iroh::TransportAddr::Relay)
+                } else {
+                    let addr_str = s.strip_prefix("ip:").unwrap_or(s);
+                    addr_str.parse::<std::net::SocketAddr>().ok().map(iroh::TransportAddr::Ip)
+                }
             }).collect())
             .unwrap_or_default();
         let addr = iroh::EndpointAddr::from_parts(peer, addrs.clone());

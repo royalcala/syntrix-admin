@@ -2,8 +2,69 @@ import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from "lucide-react";
+import { Button } from "./components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./components/ui/select";
+import { Sheet } from "./components/ui/sheet";
+import { Dashboard } from "./screens/Dashboard";
+import { Devices } from "./screens/Devices";
+import { Roles } from "./screens/Roles";
+import { CreateOrg } from "./screens/CreateOrg";
+import { Logs } from "./screens/Logs";
+import { ShareDialog } from "./screens/ShareDialog";
+import { AdminWorkspace } from "./screens/AdminWorkspace";
+import { DevicesGridPage } from "./screens/DevicesGridPage";
+import { RolesGridPage } from "./screens/RolesGridPage";
+import { OrgsGridPage } from "./screens/OrgsGridPage";
+import { ThemeToggle } from "./components/ThemeToggle";
 
-...
+type OrgInfo = { name: string };
+
+export default function App() {
+  const [nodeId, setNodeId] = useState<string>("");
+  const [orgs, setOrgs] = useState<OrgInfo[]>([]);
+  const [activeOrg, setActiveOrg] = useState<string>("");
+
+  useEffect(() => {
+    invoke<string>("get_node_id").then(setNodeId);
+    loadOrgs();
+  }, []);
+
+  async function loadOrgs() {
+    try {
+      const list: OrgInfo[] = await invoke("list_orgs");
+      setOrgs(list);
+      if (list.length > 0 && !activeOrg) setActiveOrg(list[0].name);
+    } catch {}
+  }
+
+  const hasOrgs = orgs.length > 0;
+
+  return hasOrgs ? (
+    <Layout nodeId={nodeId} orgs={orgs} activeOrg={activeOrg} setActiveOrg={setActiveOrg} onOrgsChanged={loadOrgs} />
+  ) : (
+    <CreateOrg nodeId={nodeId} onCreated={loadOrgs} />
+  );
+}
+
+function Layout({
+  nodeId, orgs, activeOrg, setActiveOrg, onOrgsChanged,
+}: {
+  nodeId: string; orgs: OrgInfo[]; activeOrg: string; setActiveOrg: (o: string) => void; onOrgsChanged: () => void;
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [newOrgOpen, setNewOrgOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+
+  async function createNewOrg() {
+    const name = newOrgName.trim() || "new-org";
+    await invoke("create_org", { name });
+    setActiveOrg(name);
+    setNewOrgName("");
+    setNewOrgOpen(false);
+    onOrgsChanged();
+  }
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -14,7 +75,6 @@ import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from
   ];
 
   const currentLabel = navItems.find((i) => location.pathname === i.href || (i.href.startsWith("/w/") && location.pathname.startsWith("/w/")))?.label ?? "Dashboard";
-
   const isWorkspaceRoute = location.pathname.startsWith("/w/");
 
   const sidebarContent = (
@@ -73,17 +133,14 @@ import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar (overlay) */}
       <Sheet open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
         {sidebarContent}
       </Sheet>
 
-      {/* Desktop sidebar (fixed) */}
       <aside className="hidden lg:flex w-64 bg-sidebar text-sidebar-foreground border-r border-border flex-col fixed inset-y-0 left-0 z-30">
         {sidebarContent}
       </aside>
 
-      {/* Main area */}
       <div className="lg:pl-64">
         <header className="h-16 border-b border-border bg-background flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 rounded-md hover:bg-accent">
@@ -114,7 +171,6 @@ import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from
         </main>
       </div>
 
-      {/* New Org Dialog */}
       {newOrgOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setNewOrgOpen(false)}>
           <div className="bg-card rounded-xl shadow-lg max-w-sm w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>

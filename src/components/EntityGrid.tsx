@@ -16,10 +16,11 @@ interface EntityGridProps {
   entity: EntityDefinition;
   activeView?: string;
   role?: string;
+  orgId?: string;
   dataLoader?: () => Promise<Array<Record<string, unknown>>>;
 }
 
-export function EntityGrid({ entity, activeView, role, dataLoader }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: EntityGridProps) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -40,7 +41,7 @@ export function EntityGrid({ entity, activeView, role, dataLoader }: EntityGridP
       if (dataLoader) {
         data = await dataLoader();
       } else {
-        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown>; type: string } }> }>("sync_pull", { orgId: "", cursor: null });
+        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown>; type: string } }> }>("sync_pull", { orgId: orgId ?? "", cursor: null });
         data = result.batch.map((e) => e.eventEncoded.payload).filter((p): p is Record<string, unknown> => p != null && typeof p === "object");
       }
 

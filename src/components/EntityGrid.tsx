@@ -257,9 +257,8 @@ export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps)
                 entity={entity}
                 row={selectedRow}
                 role={role}
-                isCreate={detailMode === "create"}
-                onSaveCreate={customCreate}
-              onClose={() => { setDetailOpen(false); }}
+          isCreate={detailMode === "create"}
+          onClose={() => { setDetailOpen(false); }}
               />
             </div>
           </div>

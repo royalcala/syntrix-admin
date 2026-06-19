@@ -68,7 +68,7 @@ function Layout({
     onOrgsChanged();
   }
 
-  const currentLabel = navItems.find((i) => location.pathname === i.href || location.pathname.startsWith(i.href))?.label ?? "Dashboard";
+  const currentLabel = navItems.find((i) => location.pathname === i.href || location.pathname.startsWith(i.href))?.label ?? "Dispositivos";
   const isEntityRoute = navItems.some((i) => location.pathname === i.href);
 
   const sidebarContent = (

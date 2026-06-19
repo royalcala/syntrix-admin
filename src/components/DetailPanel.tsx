@@ -145,7 +145,9 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, 
             {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
             {saving ? "Guardando..." : isCreate ? "Crear" : "Guardar"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => { setEditMode(false); setLocalRow({ ...row }); }} disabled={saving}>
+          <Button size="sm" variant="ghost" onClick={() => { 
+            if (isCreate) { onClose(); } else { setEditMode(false); setLocalRow({ ...row }); }
+          }} disabled={saving}>
             Cancelar
           </Button>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { DataGrid, type Column, type RenderCellProps } from "react-data-grid";
 import "react-data-grid/lib/styles.css";
+import "../react-data-grid.css";
 import { listen } from "@tauri-apps/api/event";
 import type { EntityDefinition } from "../fields/registry";
 import { getFieldRenderer } from "../fields/registry";
@@ -171,7 +172,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
               rows={rows}
               onRowsChange={onRowsChange}
               onRowClick={(row) => { setSelectedRow(row); setDetailOpen(true); }}
-              className="rdg-light h-full border-0"
+              className="rdg h-full border-0"
             />
           )}
         </div>

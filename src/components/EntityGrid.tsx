@@ -261,22 +261,41 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
       </div>
 
       {detailOpen && selectedRow && (
-        <DetailPanel
-          entity={entity}
-          row={selectedRow}
-          role={role}
-          isCreate={detailMode === "create"}
-          onSaveCreate={customCreate}
-          onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
-          onNavigate={detailMode === "create" ? undefined : (dir) => {
-            const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
-            const next = idx + dir;
-            if (next >= 0 && next < rows.length) {
-              setSelectedRow({ ...rows[next]!.original });
-              setDetailMode("edit");
-            }
-          }}
-        />
+        <>
+          {/* Desktop: right-side panel */}
+          <div className="hidden lg:block w-[420px] border-l bg-background flex flex-col shrink-0">
+            <DetailPanel
+              entity={entity}
+              row={selectedRow}
+              role={role}
+              isCreate={detailMode === "create"}
+              onSaveCreate={customCreate}
+              onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
+              onNavigate={detailMode === "create" ? undefined : (dir) => {
+                const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
+                const next = idx + dir;
+                if (next >= 0 && next < rows.length) {
+                  setSelectedRow({ ...rows[next]!.original });
+                  setDetailMode("edit");
+                }
+              }}
+            />
+          </div>
+          {/* Mobile: bottom sheet */}
+          <div className="lg:hidden fixed inset-0 z-50">
+            <div className="fixed inset-0 bg-black/50" onClick={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }} />
+            <div className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-background rounded-t-xl border-t shadow-xl overflow-auto animate-in slide-in-from-bottom">
+              <DetailPanel
+                entity={entity}
+                row={selectedRow}
+                role={role}
+                isCreate={detailMode === "create"}
+                onSaveCreate={customCreate}
+                onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

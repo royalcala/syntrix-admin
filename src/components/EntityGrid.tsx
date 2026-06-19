@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import DataEditor, {
   type GridColumn,
   type GridCell,
@@ -6,10 +6,10 @@ import DataEditor, {
   GridCellKind,
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
-import { useLiveQuery, eq } from "@tanstack/react-db";
-import type { EntityDefinition, FilterRule } from "../fields/registry";
+import type { EntityDefinition } from "../fields/registry";
 import { getFieldRenderer } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
+import { invoke } from "@tauri-apps/api/core";
 
 interface EntityGridProps {
   entity: EntityDefinition;
@@ -18,97 +18,129 @@ interface EntityGridProps {
 }
 
 export function EntityGrid({ entity, activeView, role }: EntityGridProps) {
+  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const gridRef = useRef<DataEditor | null>(null);
 
   const view = activeView
     ? entity.views.find((v) => v.id === activeView) ?? entity.views[0]
     : entity.views[0];
 
-  const { data, isLoading } = useLiveQuery((q) => {
-    let query = q.from({ row: entity.collection as never });
-    if (view?.filters.length) {
-      query = query.where(() => {
-        const conditions = view.filters.map((f: FilterRule) => eq(({ row: r }: { row: Record<string, unknown> }) => r[f.field] as never, f.value as never));
-        return conditions[0]!;
-      });
-    }
-    return query;
-  });
+  const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
 
-  const rawData = (data as Record<string, unknown>[] | undefined) ?? [];
+  // Load data via the collection snapshot
+  useEffect(() => {
+    let cancelled = false;
 
-  const displayData = useMemo(() => {
-    return rawData.map((row) => {
-      const display: Record<string, string> = {};
-      for (const field of entity.fields) {
-        const renderer = getFieldRenderer(field.type);
-        const value = row[field.key];
-        if (field.type === "relation") {
-          display[field.key] = String(value ?? "");
-        } else if (field.type === "date" && value instanceof Date) {
-          display[field.key] = value.toLocaleDateString();
-        } else if (field.type === "currency") {
-          display[field.key] = `$${Number(value ?? 0).toFixed(2)}`;
-        } else if (field.type === "status") {
-          display[field.key] = String(value ?? "");
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const collection = entity.collection as {
+          toArray?: () => Promise<Array<Record<string, unknown>>>;
+          entries?: () => Array<Record<string, unknown>>;
+        };
+
+        let data: Array<Record<string, unknown>> = [];
+
+        if (collection.toArray) {
+          data = await collection.toArray();
+        } else if (collection.entries) {
+          data = collection.entries();
         } else {
-          display[field.key] = String(value ?? "");
+          // Fallback: try useLiveQuery pattern via invoke
+          const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown> } }> }>("sync_pull", { orgId: "", cursor: null });
+          data = result.batch.map((e) => e.eventEncoded.payload).filter((p): p is Record<string, unknown> => p != null && typeof p === "object");
         }
+
+        if (!cancelled) {
+          setRows(data);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error(`[EntityGrid] failed to load data for ${entity.id}:`, err);
+        if (!cancelled) setIsLoading(false);
       }
-      return display;
-    });
-  }, [rawData, entity.fields]);
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [entity]);
 
   const columns: GridColumn[] = useMemo(
     () =>
-      (view?.visibleColumns ?? entity.fields.map((f) => f.key)).map((key) => {
-        const field = entity.fields.find((f: EntityDefinition["fields"][number]) => f.key === key);
-        return {
-          id: key,
-          title: field?.label ?? key,
-          width: field?.width ?? 150,
-        };
+      visibleCols.map((key) => {
+        const field = entity.fields.find((f) => f.key === key);
+        return { id: key, title: field?.label ?? key, width: field?.width ?? 150 };
       }),
-    [entity.fields, view],
+    [entity.fields, visibleCols],
   );
 
   const getCellContent = useCallback(
     ([col, row]: Item): GridCell => {
       const colId = columns[col]?.id;
-      if (!colId || row >= rawData.length) {
+      if (!colId || row >= rows.length || isLoading) {
         return { kind: GridCellKind.Loading, allowOverlay: false };
       }
       const field = entity.fields.find((f) => f.key === colId);
       if (!field) return { kind: GridCellKind.Text, data: "", displayData: "", allowOverlay: false };
 
-      const rowData = rawData[row];
+      const rowData = rows[row];
       const value = rowData?.[field.key];
       const renderer = getFieldRenderer(field.type);
-      const display = displayData[row]?.[field.key] ?? "";
+
+      let display = String(value ?? "");
+      if (field.type === "date" && value instanceof Date) display = value.toLocaleDateString();
+      else if (field.type === "currency") display = `$${Number(value ?? 0).toFixed(2)}`;
+      else if (field.type === "boolean") display = value ? "Sí" : "No";
 
       return renderer.grid.renderCell(value, display, field.editable, field.theme);
     },
-    [columns, rawData, displayData, entity.fields],
+    [columns, rows, entity.fields, isLoading],
   );
 
   const onCellEdited = useCallback(
-    (cell: Item, newValue: GridCell) => {
+    async (cell: Item, newValue: GridCell) => {
       const colId = columns[cell[0]]?.id;
       if (!colId) return;
       const field = entity.fields.find((f) => f.key === colId);
       if (!field?.editable) return;
-      const rowData = rawData[cell[1]];
+      const rowData = rows[cell[1]];
       if (!rowData) return;
 
-      // Per-field granular event (not whole row)
-      const collection = entity.collection as { update: (id: string | number, updater: (draft: Record<string, unknown>) => void) => void };
-      collection.update(rowData.id as string | number, (draft: Record<string, unknown>) => {
-        draft[colId] = newValue.data;
+      const recordId = rowData.id as string;
+      if (!recordId) return;
+
+      const value = newValue.data;
+
+      // Optimistic local update
+      setRows((prev) => {
+        const next = [...prev];
+        const target = next[cell[1]];
+        if (target && typeof target === "object") {
+          next[cell[1]] = { ...(target as Record<string, unknown>), [colId]: value };
+        }
+        return next;
       });
+
+      try {
+        // Per-field granular event to iroh-docs
+        await invoke("commit_event", {
+          eventType: `${entity.id}.field_updated`,
+          payload: JSON.stringify({ id: recordId, field: colId, value }),
+        });
+      } catch (err) {
+        console.error(`[EntityGrid] commit_event failed:`, err);
+        // Rollback optimistic update
+        setRows((prev) => {
+          const next = [...prev];
+          next[cell[1]] = rowData;
+          return next;
+        });
+      }
     },
-    [columns, entity, rawData],
+    [columns, entity, rows],
   );
 
   const onRowClicked = useCallback((row: number) => {
@@ -116,42 +148,38 @@ export function EntityGrid({ entity, activeView, role }: EntityGridProps) {
     setDetailOpen(true);
   }, []);
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando...</div>;
-  const rowCount = rawData.length;
+  const rowCount = rows.length;
 
   return (
     <div className="flex h-full">
       <div className="flex-1 min-w-0">
-        <DataEditor
-          columns={columns}
-          rows={rowCount}
-          getCellContent={getCellContent}
-          onCellEdited={onCellEdited}
-          onRowClicked={onRowClicked}
-          rowMarkers="number"
-          smoothScrollX
-          smoothScrollY
-          headerHeight={36}
-          rowHeight={32}
-          searchResults={
-            searchValue
-              ? rawData
-                  .map((row, i) => {
-                    const matches = entity.searchFields?.some((f) =>
-                      String(row[f] ?? "").toLowerCase().includes(searchValue.toLowerCase()),
-                    );
-                    return matches ? { col: 0, row: i } : null;
-                  })
-                  .filter(Boolean) as { col: number; row: number }[]
-              : undefined
-          }
-          onSearchClose={() => setSearchValue("")}
-        />
+        {isLoading ? (
+          <div className="p-8 text-muted-foreground text-sm">Cargando...</div>
+        ) : rowCount === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+            <span>No hay datos en {entity.label.toLowerCase()}</span>
+            <span className="text-xs">El adapter cargará los datos cuando iroh-docs sincronice</span>
+          </div>
+        ) : (
+          <DataEditor
+            ref={gridRef}
+            columns={columns}
+            rows={rowCount}
+            getCellContent={getCellContent}
+            onCellEdited={onCellEdited}
+            onRowClicked={onRowClicked}
+            rowMarkers="number"
+            smoothScrollX
+            smoothScrollY
+            headerHeight={36}
+            rowHeight={32}
+          />
+        )}
       </div>
       {detailOpen && selectedRow !== null && selectedRow < rowCount && (
         <DetailPanel
           entity={entity}
-          row={rawData[selectedRow] as Record<string, unknown>}
+          row={rows[selectedRow] ?? {}}
           role={role}
           onClose={() => setDetailOpen(false)}
           onNavigate={(dir) => {

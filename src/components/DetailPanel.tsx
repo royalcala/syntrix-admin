@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button";
-import { ScrollArea } from "./ui/scroll-area";
 import type { EntityDefinition } from "../fields/registry";
 import { getFieldRenderer } from "../fields/registry";
 
@@ -116,7 +115,7 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate }: DetailPa
         ))}
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-auto">
         {activeTab === "data" && renderDataTab()}
         {activeTab === "history" && renderHistoryTab()}
         {activeTab !== "data" && activeTab !== "history" && (
@@ -124,7 +123,7 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate }: DetailPa
             {entity.detail.tabs.find((t) => t.key === activeTab)?.label} — próximamente.
           </div>
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 }

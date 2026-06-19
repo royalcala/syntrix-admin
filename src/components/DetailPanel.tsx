@@ -22,6 +22,7 @@ interface DetailPanelProps {
 export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, onSaveCreate }: DetailPanelProps) {
   const [activeTab, setActiveTab] = useState(isCreate ? "data" : entity.detail.tabs[0]?.key ?? "data");
   const [editMode, setEditMode] = useState(!!isCreate);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const form = useForm({
     defaultValues: row as Record<string, unknown>,
@@ -42,124 +43,110 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, 
     },
   });
 
-  // Reset form when row changes (navigating between records)
   useEffect(() => {
-    form.reset(row as Record<string, unknown>);
+    form.reset();
+    setFieldErrors({});
     setEditMode(!!isCreate);
   }, [row, isCreate]);
 
-  const canEdit = entity.fields.some((f) => f.editable) || isCreate;
+  const validateField = (key: string, value: unknown): string => {
+    const field = entity.fields.find((f) => f.key === key);
+    if (!field) return "";
+    if (field.type === "number" || field.type === "currency") {
+      if (value === "" || value == null) return "";
+      if (isNaN(Number(value))) return "Debe ser un número";
+    }
+    if (field.type === "email" && value && typeof value === "string" && !value.includes("@")) {
+      return "Email inválido";
+    }
+    return "";
+  };
+
+  const handleFieldChange = (key: string, value: unknown) => {
+    form.setFieldValue(key, value);
+    const err = validateField(key, value);
+    setFieldErrors((prev) => err ? { ...prev, [key]: err } : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
+  };
+
+  const handleSubmit = () => {
+    const newErrors: Record<string, string> = {};
+    entity.fields.forEach((f) => {
+      const val = form.getFieldValue(f.key);
+      const err = validateField(f.key, val);
+      if (err) newErrors[f.key] = err;
+    });
+    if (Object.keys(newErrors).length > 0) { setFieldErrors(newErrors); return; }
+    form.handleSubmit();
+  };
 
   const renderDataTab = () => (
-    <form onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }} className="space-y-4 p-4">
+    <div className="space-y-4 p-4">
       {entity.fields.map((field) => {
         if (field.permissions?.view && role && !field.permissions.view.includes(role)) return null;
+        const value = form.getFieldValue(field.key);
+        const error = fieldErrors[field.key];
 
         return (
-          <form.Field key={field.key} name={field.key}
-            validators={{
-              onChange: ({ value }) => {
-                if (!field.editable && !isCreate) return undefined;
-                if (field.type === "number" || field.type === "currency") {
-                  if (value === "" || value === undefined || value === null) return undefined;
-                  return isNaN(Number(value)) ? "Debe ser un número" : undefined;
-                }
-                if (field.type === "email" && value) {
-                  return String(value).includes("@") ? undefined : "Email inválido";
-                }
-                return undefined;
-              },
-            }}>
-            {(fieldApi) => (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  {field.label}
-                  {!field.editable && !isCreate && <span className="text-[10px] text-muted-foreground/50">(automático)</span>}
-                </label>
+          <div key={field.key} className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              {field.label}
+              {!field.editable && !isCreate && <span className="text-[10px] text-muted-foreground/50">(automático)</span>}
+            </label>
 
-                {editMode && (field.editable || isCreate) ? (
-                  <div>
-                    {field.type === "status" || field.type === "select" ? (
-                      <Select
-                        value={String(fieldApi.state.value ?? "")}
-                        onValueChange={(v) => fieldApi.handleChange(v)}>
-                        <SelectTrigger className={fieldApi.state.meta.errors.length > 0 ? "border-destructive" : ""}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(field.options ?? (
-                            field.type === "status" ? [
-                              { label: "Borrador", value: "draft" },
-                              { label: "Abierta", value: "open" },
-                              { label: "Pagada", value: "paid" },
-                              { label: "Cancelada", value: "cancelled" },
-                            ] : []
-                          )).map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : field.type === "boolean" ? (
-                      <Switch checked={!!fieldApi.state.value} onCheckedChange={(v) => fieldApi.handleChange(v)} />
-                    ) : field.type === "date" ? (
-                      <Input
-                        type="date"
-                        value={String(fieldApi.state.value ?? "").slice(0, 10)}
-                        onChange={(e) => fieldApi.handleChange(e.target.value)}
-                        className={fieldApi.state.meta.errors.length > 0 ? "border-destructive" : ""}
-                      />
-                    ) : (
-                      <Input
-                        type={field.type === "number" || field.type === "currency" ? "number" : "text"}
-                        value={String(fieldApi.state.value ?? "")}
-                        onChange={(e) => fieldApi.handleChange(field.type === "number" || field.type === "currency" ? Number(e.target.value) : e.target.value)}
-                        className={fieldApi.state.meta.errors.length > 0 ? "border-destructive" : ""}
-                        placeholder={field.type === "currency" ? "0.00" : field.type === "number" ? "0" : ""}
-                      />
-                    )}
-                    {fieldApi.state.meta.errors.map((err: string) => (
-                      <p key={err} className="text-xs text-destructive mt-1">{err}</p>
-                    ))}
-                  </div>
+            {editMode && (field.editable || isCreate) ? (
+              <div>
+                {field.type === "status" || field.type === "select" ? (
+                  <Select value={String(value ?? "")} onValueChange={(v) => handleFieldChange(field.key, v)}>
+                    <SelectTrigger className={error ? "border-destructive" : ""}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(field.options ?? (
+                        field.type === "status" ? [
+                          { label: "Borrador", value: "draft" }, { label: "Abierta", value: "open" },
+                          { label: "Pagada", value: "paid" }, { label: "Cancelada", value: "cancelled" },
+                        ] : []
+                      )).map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                ) : field.type === "boolean" ? (
+                  <Switch checked={!!value} onCheckedChange={(v) => handleFieldChange(field.key, v)} />
+                ) : field.type === "date" ? (
+                  <Input type="date" value={String(value ?? "").slice(0, 10)}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                    className={error ? "border-destructive" : ""} />
                 ) : (
-                  <div className="text-sm px-3 py-2 bg-muted/30 rounded-md min-h-[2.25rem] flex items-center">
-                    {field.type === "status" ? (
-                      <StatusBadge status={String(fieldApi.state.value ?? "")} />
-                    ) : field.type === "boolean" ? (
-                      fieldApi.state.value ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-muted-foreground/30" />
-                    ) : field.type === "currency" ? (
-                      `$${Number(fieldApi.state.value ?? 0).toFixed(2)}`
-                    ) : (
-                      String(fieldApi.state.value ?? "—")
-                    )}
-                  </div>
+                  <Input
+                    type={field.type === "number" || field.type === "currency" ? "number" : "text"}
+                    value={String(value ?? "")}
+                    onChange={(e) => handleFieldChange(field.key, field.type === "number" || field.type === "currency" ? Number(e.target.value) : e.target.value)}
+                    className={error ? "border-destructive" : ""}
+                    placeholder={field.type === "currency" ? "0.00" : field.type === "number" ? "0" : ""} />
                 )}
+                {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+              </div>
+            ) : (
+              <div className="text-sm px-3 py-2 bg-muted/30 rounded-md min-h-[2.25rem] flex items-center">
+                {field.type === "status" ? <StatusBadge status={String(value ?? "")} />
+                : field.type === "boolean" ? (value ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-muted-foreground/30" />)
+                : field.type === "currency" ? `$${Number(value ?? 0).toFixed(2)}`
+                : String(value ?? "—")}
               </div>
             )}
-          </form.Field>
+          </div>
         );
       })}
 
       {editMode && (
         <div className="flex gap-2 pt-2">
-          <form.Subscribe selector={(state) => state.isSubmitting}>
-            {(isSubmitting) => (
-              <>
-                <Button type="submit" size="sm" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                  {isSubmitting ? "Guardando..." : isCreate ? "Crear" : "Guardar"}
-                </Button>
-                <Button type="button" size="sm" variant="ghost"
-                  onClick={() => {
-                    if (isCreate) { onClose(); } else { form.reset(row as Record<string, unknown>); setEditMode(false); }
-                  }}
-                  disabled={isSubmitting}>
-                  Cancelar
-                </Button>
-              </>
-            )}
-          </form.Subscribe>
+          <Button size="sm" onClick={handleSubmit} disabled={form.state.isSubmitting}>
+            {form.state.isSubmitting && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+            {form.state.isSubmitting ? "Guardando..." : isCreate ? "Crear" : "Guardar"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => {
+            if (isCreate) { onClose(); } else { form.reset(); setEditMode(false); setFieldErrors({}); }
+          }} disabled={form.state.isSubmitting}>
+            Cancelar
+          </Button>
         </div>
       )}
-    </form>
+    </div>
   );

@@ -79,16 +79,41 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       editable,
       renderCell: ({ row, column }: RenderCellProps<Row>) => {
         const value = row[column.key as keyof Row] as unknown;
-        const renderer = getFieldRenderer(field.type);
-        let display = String(value ?? "");
-        if (field.type === "date" && value instanceof Date) display = value.toLocaleDateString();
-        else if (field.type === "currency") display = `$${Number(value ?? 0).toFixed(2)}`;
-        else if (field.type === "boolean") display = value ? "Sí" : "No";
-        else if (field.type === "status") {
-          const colors: Record<string, string> = { draft: "#6b7280", open: "#3b82f6", paid: "#22c55e", cancelled: "#ef4444", pending: "#f59e0b" };
-          return <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ background: colors[String(value)] ?? "#6b7280" }}>{value as string}</span>;
+        if (value == null) return <span className="text-muted-foreground/40">—</span>;
+
+        if (field.type === "status") {
+          const colors: Record<string, string> = {
+            draft: "bg-muted text-muted-foreground",
+            open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+            paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+            cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+            pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+            confirmed: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+            shipped: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
+            delivered: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+          };
+          return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[String(value)] ?? "bg-muted text-muted-foreground"}`}>{value as string}</span>;
         }
-        return <span>{display}</span>;
+
+        if (field.type === "boolean") {
+          return value ? <span className="text-green-600 font-medium">✓</span> : <span className="text-muted-foreground/30">—</span>;
+        }
+
+        if (field.type === "currency") {
+          const num = Number(value ?? 0);
+          return <span className={`tabular-nums ${num < 0 ? "text-red-600" : ""}`}>${num.toFixed(2)}</span>;
+        }
+
+        if (field.type === "number") {
+          return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
+        }
+
+        if (field.type === "date") {
+          const d = value instanceof Date ? value : new Date(String(value));
+          return <span>{d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>;
+        }
+
+        return <span className="truncate">{String(value)}</span>;
       },
     };
   });

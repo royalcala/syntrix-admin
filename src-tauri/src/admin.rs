@@ -8,7 +8,9 @@ pub async fn create_org(state: &mut AppState, name: &str) -> anyhow::Result<()> 
     let author = state.author();
 
     let control_doc = api.create().await?;
-    let data_doc = api.create().await?;
+    let catalogs_doc = api.create().await?;
+    let operational_doc = api.create().await?;
+    let payroll_doc = api.create().await?;
 
     let node_id_hex = hex::encode(state.node_id());
     let device_json = serde_json::json!({
@@ -20,14 +22,22 @@ pub async fn create_org(state: &mut AppState, name: &str) -> anyhow::Result<()> 
         serde_json::to_vec(&device_json)?,
     ).await?;
 
-    let admin_role = serde_json::json!({"can_open": ["*"], "can_write": ["*"]});
+    let admin_role = serde_json::json!({"can_open": ["control","catalogs","operational","payroll"], "can_write": ["catalogs","operational","payroll"]});
     control_doc.set_bytes(author, b"roles/admin".to_vec(), serde_json::to_vec(&admin_role)?).await?;
 
     let org_json = serde_json::json!({"name": name, "created_at": chrono::Utc::now().to_rfc3339()});
     control_doc.set_bytes(author, b"org".to_vec(), serde_json::to_vec(&org_json)?).await?;
 
+    // Register namespaces for accept_cb
+    if let Ok(mut reg) = state.registry().write() {
+        reg.map_namespace_to_org(control_doc.id(), name.into());
+        reg.map_namespace_to_org(catalogs_doc.id(), name.into());
+        reg.map_namespace_to_org(operational_doc.id(), name.into());
+        reg.map_namespace_to_org(payroll_doc.id(), name.into());
+    }
+
     state.remember_device(name, &node_id_hex, "admin", "admin", &format!("Admin ({})", name), true, "");
-    state.add_org(name, control_doc, data_doc);
+    state.add_org(name, control_doc, catalogs_doc, operational_doc, payroll_doc);
     Ok(())
 }
 
@@ -57,9 +67,10 @@ pub async fn add_device(
 
 fn default_role_grants(role: &str) -> serde_json::Value {
     match role {
-        "admin" => serde_json::json!({"can_open": ["*"], "can_write": ["*"]}),
-        "sales" => serde_json::json!({"can_open": ["org_data", "org_public", "org_control"], "can_write": ["org_data"]}),
-        "contabilidad" => serde_json::json!({"can_open": ["org_facturas_*", "org_data", "org_public", "org_control"], "can_write": []}),
+        "admin" => serde_json::json!({"can_open": ["control","catalogs","operational","payroll"], "can_write": ["catalogs","operational","payroll"]}),
+        "sales" => serde_json::json!({"can_open": ["control","catalogs","operational"], "can_write": ["operational"]}),
+        "contabilidad" => serde_json::json!({"can_open": ["control","catalogs","operational","payroll"], "can_write": []}),
+        "hr" => serde_json::json!({"can_open": ["control","catalogs","payroll"], "can_write": ["payroll"]}),
         _ => serde_json::json!({"can_open": [], "can_write": []}),
     }
 }
@@ -100,15 +111,21 @@ pub fn network_status(_state: &AppState) -> String {
 pub async fn share_org_tickets(state: &mut AppState, org: &str) -> anyhow::Result<Vec<String>> {
     let org_state = state.get_org(org)
         .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
-    
+
     let control_ticket = org_state.control_doc
         .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
-    let data_ticket = org_state.data_doc
+    let catalogs_ticket = org_state.catalogs_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let operational_ticket = org_state.operational_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let payroll_ticket = org_state.payroll_doc
         .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
 
     Ok(vec![
         control_ticket.to_string(),
-        data_ticket.to_string(),
+        catalogs_ticket.to_string(),
+        operational_ticket.to_string(),
+        payroll_ticket.to_string(),
     ])
 }
 
@@ -155,17 +172,40 @@ pub async fn send_invite(
 
     let org_state = state.get_org(org)
         .ok_or_else(|| anyhow::anyhow!("org {} not found", org))?;
-    
+
     let control_ticket = org_state.control_doc
         .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
-    let data_ticket = org_state.data_doc
+    let catalogs_ticket = org_state.catalogs_doc
         .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let operational_ticket = org_state.operational_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+    let payroll_ticket = org_state.payroll_doc
+        .share(ShareMode::Write, AddrInfoOptions::RelayAndAddresses).await?;
+
+    // Build selective ticket list based on role
+    let grants = default_role_grants(role);
+    let can_open: Vec<&str> = grants["can_open"].as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+        .unwrap_or_default();
+
+    let mut tickets: Vec<serde_json::Value> = vec![];
+    if can_open.contains(&"control") {
+        tickets.push(serde_json::json!({"ns": "control", "ticket": control_ticket.to_string()}));
+    }
+    if can_open.contains(&"catalogs") {
+        tickets.push(serde_json::json!({"ns": "catalogs", "ticket": catalogs_ticket.to_string()}));
+    }
+    if can_open.contains(&"operational") {
+        tickets.push(serde_json::json!({"ns": "operational", "ticket": operational_ticket.to_string()}));
+    }
+    if can_open.contains(&"payroll") {
+        tickets.push(serde_json::json!({"ns": "payroll", "ticket": payroll_ticket.to_string()}));
+    }
 
     let payload = serde_json::json!({
         "org_name": org,
         "role": role,
-        "control_ticket": control_ticket.to_string(),
-        "data_ticket": data_ticket.to_string(),
+        "tickets": tickets,
     });
 
     let endpoint = state.endpoint();

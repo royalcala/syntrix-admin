@@ -28,7 +28,9 @@ pub struct AppState {
 pub struct OrgState {
     pub name: String,
     pub control_doc: Doc,
-    pub data_doc: Doc,
+    pub catalogs_doc: Doc,
+    pub operational_doc: Doc,
+    pub payroll_doc: Doc,
 }
 
 impl AppState {
@@ -74,10 +76,11 @@ impl AppState {
     pub fn api(&self) -> &iroh_docs::api::DocsApi { &self.docs_api }
     pub fn author(&self) -> iroh_docs::AuthorId { self.author }
     pub fn endpoint(&self) -> &Endpoint { &self._endpoint }
+    pub fn registry(&self) -> &Arc<RwLock<NamespaceRegistry>> { &self.registry }
     pub fn list_orgs(&self) -> Vec<String> { self.orgs.keys().cloned().collect() }
 
-    pub fn add_org(&mut self, name: &str, control_doc: Doc, data_doc: Doc) {
-        self.orgs.insert(name.to_string(), OrgState { name: name.to_string(), control_doc, data_doc });
+    pub fn add_org(&mut self, name: &str, control_doc: Doc, catalogs_doc: Doc, operational_doc: Doc, payroll_doc: Doc) {
+        self.orgs.insert(name.to_string(), OrgState { name: name.to_string(), control_doc, catalogs_doc, operational_doc, payroll_doc });
         self.devices.entry(name.to_string()).or_default();
         self.roles.entry(name.to_string()).or_default();
     }
@@ -99,7 +102,7 @@ impl AppState {
             reg.upsert_device(org.into(), id, iroh_syntrix_docs::registry::Device {
                 node_id: id, active, role: role.into(), person: person.into(), name: name.into(),
             });
-            // Auto-populate role grants
+            // Auto-populate role grants (already uses new 4-namespace format)
             let grants = default_role_grants(role);
             reg.upsert_role(org.into(), role.into(), iroh_syntrix_docs::registry::RoleGrants {
                 can_open: grants.can_open, can_write: grants.can_write,
@@ -142,9 +145,10 @@ struct RoleGrants { can_open: Vec<String>, can_write: Vec<String> }
 
 fn default_role_grants(role: &str) -> RoleGrants {
     match role {
-        "admin" => RoleGrants { can_open: vec!["*".into()], can_write: vec!["*".into()] },
-        "sales" => RoleGrants { can_open: vec!["org_data".into(), "org_public".into(), "org_control".into()], can_write: vec!["org_data".into()] },
-        "contabilidad" => RoleGrants { can_open: vec!["org_facturas_*".into(), "org_data".into(), "org_public".into(), "org_control".into()], can_write: vec![] },
+        "admin" => RoleGrants { can_open: vec!["control".into(),"catalogs".into(),"operational".into(),"payroll".into()], can_write: vec!["catalogs".into(),"operational".into(),"payroll".into()] },
+        "sales" => RoleGrants { can_open: vec!["control".into(),"catalogs".into(),"operational".into()], can_write: vec!["operational".into()] },
+        "contabilidad" => RoleGrants { can_open: vec!["control".into(),"catalogs".into(),"operational".into(),"payroll".into()], can_write: vec![] },
+        "hr" => RoleGrants { can_open: vec!["control".into(),"catalogs".into(),"payroll".into()], can_write: vec!["payroll".into()] },
         _ => RoleGrants { can_open: vec![], can_write: vec![] },
     }
 }

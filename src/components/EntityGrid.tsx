@@ -180,36 +180,40 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
 
   const rowCount = rows.length;
 
-  const gridTheme: Partial<GlideTheme> = {
-    accentColor: "hsl(var(--primary))",
-    accentLight: "hsl(var(--primary) / 0.1)",
-    textDark: "hsl(var(--foreground))",
-    textMedium: "hsl(var(--muted-foreground))",
-    textLight: "hsl(var(--muted-foreground) / 0.6)",
-    textBubble: "hsl(var(--primary-foreground))",
-    bgIconHeader: "hsl(var(--muted))",
-    fgIconHeader: "hsl(var(--foreground))",
-    textHeader: "hsl(var(--foreground))",
-    textHeaderSelected: "hsl(var(--primary-foreground) / 0.9)",
-    bgCell: "hsl(var(--background))",
-    bgCellMedium: "hsl(var(--muted) / 0.5)",
-    bgHeader: "hsl(var(--muted))",
-    bgHeaderHasFocus: "hsl(var(--accent))",
-    bgHeaderHovered: "hsl(var(--accent) / 0.5)",
-    bgBubble: "hsl(var(--primary))",
-    bgBubbleSelected: "hsl(var(--primary) / 0.8)",
-    bgSearchResult: "hsl(var(--warning) / 0.3)",
-    borderColor: "hsl(var(--border))",
-    drilldownBorder: "hsl(var(--border))",
-    linkColor: "hsl(var(--primary))",
-    textGroupHeader: "hsl(var(--muted-foreground))",
-    bgGroupHeader: "hsl(var(--muted))",
-    fontFamily: "inherit",
-    headerFontStyle: "600 13px",
-    baseFontStyle: "13px",
-    editorFontSize: "13px",
-    lineHeight: 1.4,
-  };
+  const gridTheme = useMemo((): Partial<GlideTheme> => {
+    const style = getComputedStyle(document.documentElement);
+
+    return {
+      accentColor: style.getPropertyValue("--primary").trim(),
+      accentLight: style.getPropertyValue("--accent").trim(),
+      textDark: style.getPropertyValue("--foreground").trim(),
+      textMedium: style.getPropertyValue("--muted-foreground").trim(),
+      textLight: style.getPropertyValue("--muted-foreground").trim(),
+      textBubble: style.getPropertyValue("--primary-foreground").trim(),
+      bgIconHeader: style.getPropertyValue("--muted").trim(),
+      fgIconHeader: style.getPropertyValue("--foreground").trim(),
+      textHeader: style.getPropertyValue("--foreground").trim(),
+      textHeaderSelected: style.getPropertyValue("--primary-foreground").trim(),
+      bgCell: style.getPropertyValue("--background").trim(),
+      bgCellMedium: style.getPropertyValue("--muted").trim(),
+      bgHeader: style.getPropertyValue("--muted").trim(),
+      bgHeaderHasFocus: style.getPropertyValue("--accent").trim(),
+      bgHeaderHovered: style.getPropertyValue("--accent").trim(),
+      bgBubble: style.getPropertyValue("--primary").trim(),
+      bgBubbleSelected: style.getPropertyValue("--primary").trim(),
+      bgSearchResult: style.getPropertyValue("--warning").trim(),
+      borderColor: style.getPropertyValue("--border").trim(),
+      drilldownBorder: style.getPropertyValue("--border").trim(),
+      linkColor: style.getPropertyValue("--primary").trim(),
+      textGroupHeader: style.getPropertyValue("--muted-foreground").trim(),
+      bgGroupHeader: style.getPropertyValue("--muted").trim(),
+      fontFamily: "inherit",
+      headerFontStyle: "600 13px",
+      baseFontStyle: "13px",
+      editorFontSize: "13px",
+      lineHeight: 1.4,
+    };
+  }, []);
 
   return (
     <div className="flex h-full">

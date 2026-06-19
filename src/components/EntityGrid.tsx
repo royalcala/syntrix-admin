@@ -11,12 +11,11 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { Plus, Search, ArrowUp, ArrowDown } from "lucide-react";
-import { useHotkeys } from "@tanstack/react-hotkeys";
 import { useLiveQuery } from "@tanstack/react-db";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table";
 import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
-import { useHotkeys } from "@tanstack/react-hotkeys";
 
 interface EntityGridProps {
   entity: EntityDefinition;

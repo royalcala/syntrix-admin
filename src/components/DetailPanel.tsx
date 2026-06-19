@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { useForm } from "@tanstack/react-form";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./ui/select";
+import { Switch } from "./ui/switch";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import type { EntityDefinition } from "../fields/registry";
 
 interface DetailPanelProps {
@@ -22,15 +27,8 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate }
     defaultValues: row as Record<string, unknown>,
     onSubmit: async ({ value }) => {
       try {
-        const collection = entity.collection as {
-          insert?: (item: unknown) => void;
-          update?: (id: string, updater: (draft: Record<string, unknown>) => void) => void;
-        };
-        if (isCreate) {
-          collection.insert?.(value);
-        } else {
-          collection.update?.(value.id as string, (draft) => { Object.assign(draft, value); });
-        }
+        const eventType = isCreate ? `${entity.id}.created` : `${entity.id}.updated`;
+        await invoke("commit_event", { eventType, payload: JSON.stringify(value) });
         toast.success(isCreate ? `${entity.label} creado` : "Cambios guardados");
         setEditMode(false);
         if (isCreate && onClose) onClose();

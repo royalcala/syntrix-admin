@@ -1,11 +1,13 @@
 import { createCollection } from "@tanstack/react-db";
 import { tauriCollectionOptions } from "./tauri-adapter";
+import { deviceSchema, roleSchema, orgSchema } from "./schemas";
 
 export function createDevicesCollection(org: string) {
   return createCollection(
     tauriCollectionOptions({
       id: "devices",
       getKey: (d) => d.node_id as string,
+      schema: deviceSchema,
       listCommand: "list_devices",
       listArgs: { org },
       insertCommand: "add_device",
@@ -23,6 +25,7 @@ export function createRolesCollection(org: string) {
     tauriCollectionOptions({
       id: "roles",
       getKey: (r) => r.name as string,
+      schema: roleSchema,
       listCommand: "list_roles",
       listArgs: { org },
       mapRow: (item) => {
@@ -38,6 +41,7 @@ export function createOrgsCollection() {
     tauriCollectionOptions({
       id: "orgs",
       getKey: (o) => o.name as string,
+      schema: orgSchema,
       listCommand: "list_orgs",
       mapRow: (item) => {
         const name = item as string;

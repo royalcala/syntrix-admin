@@ -1,10 +1,18 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { DataGrid } from "react-data-grid";
-import "react-data-grid/lib/styles.css";
-import "../react-data-grid.css";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+  type SortingState,
+  type ColumnFiltersState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { listen } from "@tauri-apps/api/event";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table";
 import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
 import { invoke } from "@tauri-apps/api/core";
@@ -16,21 +24,21 @@ interface EntityGridProps {
   orgId?: string;
   dataLoader?: () => Promise<Array<Record<string, unknown>>>;
   onCreateRecord?: (row: Row) => Promise<Row>;
-  onUpdateField?: (recordId: string, field: string, value: unknown) => Promise<void>;
 }
 
 interface Row { id: string; [key: string]: unknown; }
 
-export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCreateRecord: customCreate, onUpdateField }: EntityGridProps) {
-  const [rows, setRows] = useState<Row[]>([]);
+export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCreateRecord: customCreate }: EntityGridProps) {
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
   const [isLoading, setIsLoading] = useState(true);
   const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
-  const [sortColumns, setSortColumns] = useState<Array<{ columnKey: string; direction: "ASC" | "DESC" }>>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const view = entity.views.find((v) => v.id === viewId) ?? entity.views[0];
   const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
@@ -68,79 +76,61 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
     return () => { unlisten.then((fn) => fn()); };
   }, [entity.id, loadData]);
 
-  // Filter, sort, search
-  const processedRows = useMemo(() => {
-    let data = [...allRows];
+  const columns = useMemo(() =>
+    visibleCols.map((key) => {
+      const field = entity.fields.find((f) => f.key === key);
+      return {
+        id: key,
+        accessorKey: key,
+        header: field?.label ?? key,
+        enableSorting: field?.sortable ?? true,
+        cell: ({ getValue, row }: { getValue: () => unknown; row: { original: Row } }) => {
+          const value = getValue();
+          if (value == null) return <span className="text-muted-foreground/40">—</span>;
 
-    // Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      data = data.filter((row) =>
-        entity.searchFields.some((f) => String(row[f] ?? "").toLowerCase().includes(q)),
-      );
-    }
+          if (field?.type === "status") {
+            const colors: Record<string, string> = {
+              draft: "bg-muted text-muted-foreground", open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+              paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300", cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+              pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+            };
+            return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[String(value)] ?? "bg-muted text-muted-foreground"}`}>{value as string}</span>;
+          }
 
-    // Sort
-    if (sortColumns.length > 0) {
-      const sc = sortColumns[0]!;
-      data.sort((a, b) => {
-        const va = a[sc.columnKey], vb = b[sc.columnKey];
-        const field = entity.fields.find((f) => f.key === sc.columnKey);
-        const cmp = field?.type === "number" || field?.type === "currency"
-          ? (Number(va ?? 0) - Number(vb ?? 0))
-          : String(va ?? "").localeCompare(String(vb ?? ""));
-        return sc.direction === "DESC" ? -cmp : cmp;
-      });
-    }
+          if (field?.type === "boolean") return value ? <span className="text-green-600 font-medium">✓</span> : <span className="text-muted-foreground/30">—</span>;
 
-    setRows(data);
-    return data;
-  }, [allRows, searchQuery, sortColumns, entity]);
+          if (field?.type === "currency") {
+            const num = Number(value ?? 0);
+            return <span className={`tabular-nums ${num < 0 ? "text-red-600" : ""}`}>${num.toFixed(2)}</span>;
+          }
 
-  const columns = visibleCols.map((key) => {
-    const field = entity.fields.find((f) => f.key === key);
-    if (!field) return { key, name: key, resizable: true, sortable: true };
+          if (field?.type === "number") return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
 
-    return {
-      key: field.key,
-      name: field.label,
-      width: field.width,
-      resizable: true,
-      sortable: field.sortable,
-      renderCell: ({ row, column }: { row: Row; column: { key: string; name?: string } }) => {
-        const value = row[column.key as keyof Row] as unknown;
-        if (value == null) return <span className="text-muted-foreground/40">—</span>;
+          if (field?.type === "date") {
+            const d = value instanceof Date ? value : new Date(String(value));
+            if (isNaN(d.getTime())) return <span className="text-muted-foreground/40">—</span>;
+            return <span>{d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>;
+          }
 
-        if (field.type === "status") {
-          const colors: Record<string, string> = {
-            draft: "bg-muted text-muted-foreground", open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-            paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300", cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-            pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-          };
-          return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[String(value)] ?? "bg-muted text-muted-foreground"}`}>{value as string}</span>;
-        }
+          return <span className="truncate">{String(value)}</span>;
+        },
+      };
+    }),
+    [visibleCols, entity.fields],
+  );
 
-        if (field.type === "boolean") return value ? <span className="text-green-600 font-medium">✓</span> : <span className="text-muted-foreground/30">—</span>;
-
-        if (field.type === "currency") {
-          const num = Number(value ?? 0);
-          return <span className={`tabular-nums ${num < 0 ? "text-red-600" : ""}`}>${num.toFixed(2)}</span>;
-        }
-
-        if (field.type === "number") return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
-
-        if (field.type === "date") {
-          const d = value instanceof Date ? value : new Date(String(value));
-          if (isNaN(d.getTime())) return <span className="text-muted-foreground/40">—</span>;
-          return <span>{d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>;
-        }
-
-        return <span className="truncate">{String(value)}</span>;
-      },
-    };
+  const table = useReactTable({
+    data: allRows,
+    columns,
+    state: { sorting, columnFilters, columnVisibility },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.id,
   });
-
-  const onSortColumnsChange = useCallback((sorts: SortColumn[]) => setSortColumns(sorts), []);
 
   const onCreateRecord = useCallback(async () => {
     const newId = crypto.randomUUID?.() ?? `${Date.now()}`;
@@ -154,8 +144,6 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
         else newRow[f.key] = "" as unknown;
       }
     });
-
-    // All creates go through DetailPanel (supports Select, Switch, DatePicker)
     setSelectedRow(newRow);
     setDetailMode("create");
     setDetailOpen(true);
@@ -167,7 +155,6 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
     setDetailOpen(true);
   }, []);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && detailOpen) { setDetailOpen(false); return; }
@@ -177,12 +164,12 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
     return () => window.removeEventListener("keydown", handler);
   }, [detailOpen, onCreateRecord]);
 
+  const rows = table.getRowModel().rows;
+
   return (
     <div className="flex h-full">
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/30">
-          {/* View selector */}
           {entity.views.length > 1 && (
             <div className="flex rounded-md border overflow-hidden text-xs">
               {entity.views.map((v) => (
@@ -193,45 +180,36 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
               ))}
             </div>
           )}
-
-          {/* Search */}
           <div className="relative ml-2">
             <Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground" />
             <input
               className="w-44 pl-7 pr-2 py-1 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="Buscar..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); table.setGlobalFilter(e.target.value); }}
             />
-            {searchQuery && (
-              <span className="absolute right-2 top-1 text-[10px] text-muted-foreground">
-                {processedRows.length} / {allRows.length}
-              </span>
-            )}
           </div>
-
           <button onClick={onCreateRecord}
             className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors ml-auto">
             <Plus className="w-3 h-3 inline mr-1" />Nuevo
           </button>
-          <span className="text-xs text-muted-foreground">{processedRows.length} registros</span>
+          <span className="text-xs text-muted-foreground">{rows.length} registros</span>
         </div>
 
-        {/* Grid */}
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-auto">
           {isLoading ? (
             <div className="p-4 space-y-2">
-              {Array.from({ length: 15 }).map((_, i) => (
+              {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="h-8 bg-muted/50 rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
               ))}
             </div>
-          ) : processedRows.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-3">
               {searchQuery ? (
                 <>
                   <Search className="w-8 h-8 opacity-30" />
                   <span>No hay resultados para "{searchQuery}"</span>
-                  <button onClick={() => setSearchQuery("")} className="text-xs text-primary hover:underline">Limpiar búsqueda</button>
+                  <button onClick={() => { setSearchQuery(""); table.setGlobalFilter(""); }} className="text-xs text-primary hover:underline">Limpiar búsqueda</button>
                 </>
               ) : (
                 <>
@@ -246,16 +224,38 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
               )}
             </div>
           ) : (
-            <DataGrid
-              columns={columns}
-              rows={processedRows}
-              sortColumns={sortColumns}
-              onSortColumnsChange={onSortColumnsChange}
-              onRowClick={onRowClick}
-              className="rdg h-full border-0"
-              rowHeight={36}
-              headerRowHeight={36}
-            />
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id} style={{ width: entity.fields.find((f) => f.key === header.id)?.width }}
+                        className={header.column.getCanSort() ? "cursor-pointer select-none" : ""}
+                        onClick={header.column.getToggleSortingHandler()}>
+                        <div className="flex items-center gap-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {{
+                            asc: <ArrowUp className="w-3 h-3" />,
+                            desc: <ArrowDown className="w-3 h-3" />,
+                          }[header.column.getIsSorted() as string] ?? null}
+                        </div>
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id} onClick={() => onRowClick(row.original)} className="cursor-pointer">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
       </div>
@@ -269,10 +269,10 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
           onSaveCreate={customCreate}
           onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
           onNavigate={detailMode === "create" ? undefined : (dir) => {
-            const idx = processedRows.findIndex((r) => r.id === selectedRow.id);
+            const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
             const next = idx + dir;
-            if (next >= 0 && next < processedRows.length) {
-              setSelectedRow({ ...processedRows[next]! });
+            if (next >= 0 && next < rows.length) {
+              setSelectedRow({ ...rows[next]!.original });
               setDetailMode("edit");
             }
           }}

@@ -1,12 +1,6 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import DataEditor, {
-  type GridColumn,
-  type GridCell,
-  type Item,
-  GridCellKind,
-  type Theme as GlideTheme,
-} from "@glideapps/glide-data-grid";
-import "@glideapps/glide-data-grid/dist/index.css";
+import { useState, useCallback, useEffect } from "react";
+import DataGrid, { type Column, type RenderCellProps, type RenderEditCellProps, textEditor, SelectColumn } from "react-data-grid";
+import "react-data-grid/lib/styles.css";
 import { listen } from "@tauri-apps/api/event";
 import type { EntityDefinition } from "../fields/registry";
 import { getFieldRenderer } from "../fields/registry";
@@ -21,29 +15,31 @@ interface EntityGridProps {
   dataLoader?: () => Promise<Array<Record<string, unknown>>>;
 }
 
+interface Row {
+  id: string;
+  [key: string]: unknown;
+}
+
 export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: EntityGridProps) {
-  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [selectedRow, setSelectedRow] = useState<number | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const gridRef = useRef<DataEditor | null>(null);
 
   const view = activeView
     ? entity.views.find((v) => v.id === activeView) ?? entity.views[0]
     : entity.views[0];
 
-  const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
-
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      let data: Array<Record<string, unknown>>;
+      let data: Row[];
 
       if (dataLoader) {
-        data = await dataLoader();
+        data = (await dataLoader()) as Row[];
       } else {
-        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown>; type: string } }> }>("sync_pull", { orgId: orgId ?? "", cursor: null });
-        data = result.batch.map((e) => e.eventEncoded.payload).filter((p): p is Record<string, unknown> => p != null && typeof p === "object");
+        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Row; type: string } }> }>("sync_pull", { orgId: orgId ?? "", cursor: null });
+        data = result.batch.map((e) => ({ ...(e.eventEncoded.payload as Record<string, unknown>), id: (e.eventEncoded.payload as Record<string, unknown>).id ?? crypto.randomUUID() })) as Row[];
       }
 
       setRows(data);
@@ -53,111 +49,79 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       setIsLoading(false);
       setRows([]);
     }
-  }, [dataLoader, entity.id]);
+  }, [dataLoader, entity.id, orgId]);
 
-  // Initial load
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  // Listen for real-time data changes from iroh-docs
   useEffect(() => {
     const unlisten = listen<{ org_id: string; event: { type: string; payload: Record<string, unknown> } }>("data-changed", (event) => {
-      const { event: syncEvent } = event.payload;
-      const entityType = syncEvent.type?.split(".")[0];
-      if (entityType === entity.id || syncEvent.type?.startsWith(`${entity.id}.`)) {
-        // Re-fetch all data when changes occur (simple approach for MVP)
+      const entityType = event.payload.event.type?.split(".")[0];
+      if (entityType === entity.id || event.payload.event.type?.startsWith(`${entity.id}.`)) {
         loadData();
       }
     });
     return () => { unlisten.then((fn) => fn()); };
   }, [entity.id, loadData]);
 
-  const columns: GridColumn[] = useMemo(
-    () =>
-      visibleCols.map((key) => {
-        const field = entity.fields.find((f) => f.key === key);
-        return { id: key, title: field?.label ?? key, width: field?.width ?? 150 };
-      }),
-    [entity.fields, visibleCols],
-  );
+  const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
 
-  const getCellContent = useCallback(
-    ([col, row]: Item): GridCell => {
-      const colId = columns[col]?.id;
-      if (!colId || row >= rows.length || isLoading) {
-        return { kind: GridCellKind.Loading, allowOverlay: false };
-      }
-      const field = entity.fields.find((f) => f.key === colId);
-      if (!field) return { kind: GridCellKind.Text, data: "", displayData: "", allowOverlay: false };
+  const columns = visibleCols.map((key): Column<Row> => {
+    const field = entity.fields.find((f) => f.key === key);
+    if (!field) return { key, name: key };
 
-      const rowData = rows[row];
-      const value = rowData?.[field.key];
-      const renderer = getFieldRenderer(field.type);
+    const editable = field.editable ?? false;
 
-      let display = String(value ?? "");
-      if (field.type === "date" && value instanceof Date) display = value.toLocaleDateString();
-      else if (field.type === "currency") display = `$${Number(value ?? 0).toFixed(2)}`;
-      else if (field.type === "boolean") display = value ? "Sí" : "No";
-
-      return renderer.grid.renderCell(value, display, field.editable, field.theme);
-    },
-    [columns, rows, entity.fields, isLoading],
-  );
-
-  const onCellEdited = useCallback(
-    async (cell: Item, newValue: GridCell) => {
-      const colId = columns[cell[0]]?.id;
-      if (!colId) return;
-      const field = entity.fields.find((f) => f.key === colId);
-      if (!field?.editable) return;
-      const rowData = rows[cell[1]];
-      if (!rowData) return;
-
-      const recordId = rowData.id as string;
-      if (!recordId) return;
-
-      const value = newValue.data;
-      const prevRow = { ...rowData };
-
-      // Optimistic local update
-      setRows((prev) => {
-        const next = [...prev];
-        const target = next[cell[1]];
-        if (target && typeof target === "object") {
-          next[cell[1]] = { ...(target as Record<string, unknown>), [colId]: value };
+    return {
+      key: field.key,
+      name: field.label,
+      width: field.width,
+      editable,
+      editor: editable ? textEditor : undefined,
+      renderCell: ({ row, column }: RenderCellProps<Row>) => {
+        const value = row[column.key as keyof Row] as unknown;
+        const renderer = getFieldRenderer(field.type);
+        let display = String(value ?? "");
+        if (field.type === "date" && value instanceof Date) display = value.toLocaleDateString();
+        else if (field.type === "currency") display = `$${Number(value ?? 0).toFixed(2)}`;
+        else if (field.type === "boolean") display = value ? "Sí" : "No";
+        else if (field.type === "status") {
+          const colors: Record<string, string> = { draft: "#6b7280", open: "#3b82f6", paid: "#22c55e", cancelled: "#ef4444", pending: "#f59e0b" };
+          return <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ background: colors[String(value)] ?? "#6b7280" }}>{value as string}</span>;
         }
-        return next;
-      });
+        return <span>{display}</span>;
+      },
+    };
+  });
 
-      try {
-        await invoke("commit_event", {
-          eventType: `${entity.id}.field_updated`,
-          payload: JSON.stringify({ id: recordId, field: colId, value }),
-        });
-      } catch (err) {
-        console.error(`[EntityGrid] commit_event failed for ${colId}:`, err);
-        // Rollback
-        setRows((prev) => {
-          const next = [...prev];
-          next[cell[1]] = prevRow;
-          return next;
-        });
-      }
+  const onRowsChange = useCallback(
+    (newRows: Row[], { column, indexes }: { column: Column<Row>; indexes: number[] }) => {
+      const rowIdx = indexes[0];
+      const rowData = rows[rowIdx];
+      if (!rowIdx || !rowData) return;
+
+      const newValue = newRows[rowIdx][column.key];
+      const recordId = rowData.id;
+
+      setRows(newRows);
+
+      invoke("commit_event", {
+        eventType: `${entity.id}.field_updated`,
+        payload: JSON.stringify({ id: recordId, field: column.key, value: newValue }),
+      }).catch((err) => console.error("[EntityGrid] commit_event failed:", err));
     },
-    [columns, entity.id, entity.fields, rows],
+    [entity, rows],
   );
 
   const onCreateRecord = useCallback(async () => {
     const newId = crypto.randomUUID?.() ?? `${Date.now()}`;
-    const newRow: Record<string, unknown> = { id: newId };
+    const newRow: Row = { id: newId };
     entity.fields.forEach((f) => {
       if (f.key !== "id") {
-        if (f.type === "number" || f.type === "currency") newRow[f.key] = 0;
-        else if (f.type === "boolean") newRow[f.key] = false;
-        else if (f.type === "status") newRow[f.key] = f.options?.[0]?.value ?? "draft";
-        else if (f.type === "date") newRow[f.key] = new Date().toISOString();
-        else newRow[f.key] = "";
+        if (f.type === "number" || f.type === "currency") newRow[f.key] = 0 as unknown;
+        else if (f.type === "boolean") newRow[f.key] = false as unknown;
+        else if (f.type === "status") newRow[f.key] = f.options?.[0]?.value ?? "draft" as unknown;
+        else if (f.type === "date") newRow[f.key] = new Date().toISOString() as unknown;
+        else newRow[f.key] = "" as unknown;
       }
     });
 
@@ -173,52 +137,9 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
     }
   }, [entity]);
 
-  const onRowClicked = useCallback((row: number) => {
-    setSelectedRow(row);
-    setDetailOpen(true);
-  }, []);
-
-  const rowCount = rows.length;
-
-  const gridTheme = useMemo((): Partial<GlideTheme> => {
-    const style = getComputedStyle(document.documentElement);
-
-    return {
-      accentColor: style.getPropertyValue("--primary").trim(),
-      accentLight: style.getPropertyValue("--accent").trim(),
-      textDark: style.getPropertyValue("--foreground").trim(),
-      textMedium: style.getPropertyValue("--muted-foreground").trim(),
-      textLight: style.getPropertyValue("--muted-foreground").trim(),
-      textBubble: style.getPropertyValue("--primary-foreground").trim(),
-      bgIconHeader: style.getPropertyValue("--muted").trim(),
-      fgIconHeader: style.getPropertyValue("--foreground").trim(),
-      textHeader: style.getPropertyValue("--foreground").trim(),
-      textHeaderSelected: style.getPropertyValue("--primary-foreground").trim(),
-      bgCell: style.getPropertyValue("--background").trim(),
-      bgCellMedium: style.getPropertyValue("--muted").trim(),
-      bgHeader: style.getPropertyValue("--muted").trim(),
-      bgHeaderHasFocus: style.getPropertyValue("--accent").trim(),
-      bgHeaderHovered: style.getPropertyValue("--accent").trim(),
-      bgBubble: style.getPropertyValue("--primary").trim(),
-      bgBubbleSelected: style.getPropertyValue("--primary").trim(),
-      bgSearchResult: style.getPropertyValue("--warning").trim(),
-      borderColor: style.getPropertyValue("--border").trim(),
-      drilldownBorder: style.getPropertyValue("--border").trim(),
-      linkColor: style.getPropertyValue("--primary").trim(),
-      textGroupHeader: style.getPropertyValue("--muted-foreground").trim(),
-      bgGroupHeader: style.getPropertyValue("--muted").trim(),
-      fontFamily: "inherit",
-      headerFontStyle: "600 13px",
-      baseFontStyle: "13px",
-      editorFontSize: "13px",
-      lineHeight: 1.4,
-    };
-  }, []);
-
   return (
     <div className="flex h-full">
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/30">
           <button
             onClick={onCreateRecord}
@@ -226,13 +147,9 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
           >
             + Nuevo
           </button>
-          {view && view.id !== "all" && (
-            <span className="text-xs text-muted-foreground ml-2">Vista: {view.label}</span>
-          )}
-          <span className="text-xs text-muted-foreground ml-auto">{rowCount} registros</span>
+          <span className="text-xs text-muted-foreground ml-auto">{rows.length} registros</span>
         </div>
 
-        {/* Grid */}
         <div className="flex-1 min-h-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
@@ -241,7 +158,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
                 Cargando...
               </div>
             </div>
-          ) : rowCount === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-3">
               <span>Aún no hay {entity.label.toLowerCase()}</span>
               <button onClick={onCreateRecord} className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
@@ -249,32 +166,22 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
               </button>
             </div>
           ) : (
-            <DataEditor
+            <DataGrid
               columns={columns}
-              rows={rowCount}
-              getCellContent={getCellContent}
-              onCellEdited={onCellEdited}
-              onRowClicked={onRowClicked}
-              theme={gridTheme as Record<string, unknown>}
-              rowMarkers="number"
-              smoothScrollX
-              smoothScrollY
-              headerHeight={36}
-              rowHeight={32}
+              rows={rows}
+              onRowsChange={onRowsChange}
+              onRowClick={(row) => { setSelectedRow(row); setDetailOpen(true); }}
+              className="rdg-light h-full border-0"
             />
           )}
         </div>
       </div>
-      {detailOpen && selectedRow !== null && selectedRow < rowCount && (
+      {detailOpen && selectedRow && (
         <DetailPanel
           entity={entity}
-          row={rows[selectedRow] ?? {}}
+          row={selectedRow}
           role={role}
           onClose={() => setDetailOpen(false)}
-          onNavigate={(dir) => {
-            const next = selectedRow + dir;
-            if (next >= 0 && next < rowCount) setSelectedRow(next);
-          }}
         />
       )}
     </div>

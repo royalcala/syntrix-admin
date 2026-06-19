@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-table";
 import { Plus, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { useLiveQuery } from "@tanstack/react-db";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table";
 import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
@@ -127,14 +128,10 @@ export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps)
     setDetailOpen(true);
   }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && detailOpen) { setDetailOpen(false); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === "n") { e.preventDefault(); onCreateRecord(); return; }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [detailOpen, onCreateRecord]);
+  useHotkeys([
+    { hotkey: "Escape", callback: () => { if (detailOpen) setDetailOpen(false); } },
+    { hotkey: "mod+n", callback: (e) => { e.preventDefault(); onCreateRecord(); } },
+  ]);
 
   const rows = table.getRowModel().rows;
 

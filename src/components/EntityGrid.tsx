@@ -31,6 +31,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -43,7 +44,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   // Reactive data from TanStack DB collection
   const { data: liveData, isLoading } = useLiveQuery((q) => {
     return q.from({ row: entity.collection as never });
-  });
+  }, [refreshKey]);
 
   const allRows = useMemo(() => {
     const raw = (liveData as Array<Record<string, unknown>> | undefined) ?? [];
@@ -240,7 +241,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
                   role={role}
                   isCreate={detailMode === "create"}
                   onSaveCreate={onSaveCreate}
-                  onClose={() => { setDetailOpen(false); }}
+          onClose={() => { setDetailOpen(false); if (detailMode === "create") { setRefreshKey((k) => k + 1); } }}
                   onNavigate={detailMode === "create" ? undefined : (dir) => {
                 const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
                 const next = idx + dir;
@@ -253,7 +254,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
           </div>
           {/* Mobile: bottom sheet */}
           <div className="lg:hidden fixed inset-0 z-50">
-            <div className="fixed inset-0 bg-black/50" onClick={() => { setDetailOpen(false); }} />
+            <div className="fixed inset-0 bg-black/50" onClick={() => { setDetailOpen(false); if (detailMode === "create") { setRefreshKey((k) => k + 1); } }} />
             <div className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-background rounded-t-xl border-t shadow-xl overflow-auto animate-in slide-in-from-bottom">
               <DetailPanel
                 entity={entity}

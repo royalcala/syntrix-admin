@@ -22,11 +22,12 @@ interface EntityGridProps {
   activeView?: string;
   role?: string;
   orgId?: string;
+  onSaveCreate?: (row: Row) => Promise<Row>;
 }
 
 interface Row { id: string; [key: string]: unknown; }
 
-export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: EntityGridProps) {
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
@@ -234,12 +235,13 @@ export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps)
           {/* Desktop: right-side panel */}
           <div className="hidden lg:block w-[420px] border-l bg-background flex flex-col shrink-0">
             <DetailPanel
-              entity={entity}
-              row={selectedRow}
-              role={role}
-          isCreate={detailMode === "create"}
-          onClose={() => { setDetailOpen(false); }}
-              onNavigate={detailMode === "create" ? undefined : (dir) => {
+        entity={entity}
+                  row={selectedRow}
+                  role={role}
+                  isCreate={detailMode === "create"}
+                  onSaveCreate={onSaveCreate}
+                  onClose={() => { setDetailOpen(false); }}
+                  onNavigate={detailMode === "create" ? undefined : (dir) => {
                 const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
                 const next = idx + dir;
                 if (next >= 0 && next < rows.length) {

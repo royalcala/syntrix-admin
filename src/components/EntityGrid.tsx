@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import DataGrid, { type Column, type RenderCellProps, type SortColumn } from "react-data-grid";
+import { DataGrid, type Column } from "react-data-grid";
 import "react-data-grid/lib/styles.css";
 import "../react-data-grid.css";
 import { listen } from "@tauri-apps/api/event";
@@ -26,7 +26,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
   const [isLoading, setIsLoading] = useState(true);
   const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
-  const [sortColumns, setSortColumns] = useState<SortColumn[]>([]);
+  const [sortColumns, setSortColumns] = useState<Array<{ columnKey: string; direction: "ASC" | "DESC" }>>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const view = entity.views.find((v) => v.id === viewId) ?? entity.views[0];
@@ -104,7 +104,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       width: field.width,
       resizable: true,
       sortable: field.sortable,
-      renderCell: ({ row, column }: RenderCellProps<Row>) => {
+      renderCell: ({ row, column }: { row: Row; column: Column<Row> }) => {
         const value = row[column.key as keyof Row] as unknown;
         if (value == null) return <span className="text-muted-foreground/40">—</span>;
 

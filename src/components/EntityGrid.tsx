@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
-import { DataGrid, type Column, type RenderCellProps } from "react-data-grid";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import DataGrid, { type Column, type RenderCellProps, type SortColumn } from "react-data-grid";
 import "react-data-grid/lib/styles.css";
 import "../react-data-grid.css";
 import { listen } from "@tauri-apps/api/event";
+import { Plus, ArrowUpDown, ArrowUp, ArrowDown, Columns, Search, SlidersHorizontal } from "lucide-react";
 import type { EntityDefinition } from "../fields/registry";
-import { getFieldRenderer } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -16,20 +16,21 @@ interface EntityGridProps {
   dataLoader?: () => Promise<Array<Record<string, unknown>>>;
 }
 
-interface Row {
-  id: string;
-  [key: string]: unknown;
-}
+interface Row { id: string; [key: string]: unknown; }
 
 export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: EntityGridProps) {
   const [rows, setRows] = useState<Row[]>([]);
+  const [allRows, setAllRows] = useState<Row[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
   const [isLoading, setIsLoading] = useState(true);
+  const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
+  const [sortColumns, setSortColumns] = useState<SortColumn[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const view = activeView
-    ? entity.views.find((v) => v.id === activeView) ?? entity.views[0]
-    : entity.views[0];
+  const view = entity.views.find((v) => v.id === viewId) ?? entity.views[0];
+  const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
 
   const loadData = useCallback(async () => {
     try {
@@ -43,12 +44,12 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
         data = result.batch.map((e) => ({ ...(e.eventEncoded.payload as Record<string, unknown>), id: (e.eventEncoded.payload as Record<string, unknown>).id ?? crypto.randomUUID() })) as Row[];
       }
 
-      setRows(data);
+      setAllRows(data);
       setIsLoading(false);
     } catch (err) {
       console.error(`[EntityGrid] loadData failed for ${entity.id}:`, err);
       setIsLoading(false);
-      setRows([]);
+      setAllRows([]);
     }
   }, [dataLoader, entity.id, orgId]);
 
@@ -64,52 +65,70 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
     return () => { unlisten.then((fn) => fn()); };
   }, [entity.id, loadData]);
 
-  const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
+  // Filter, sort, search
+  const processedRows = useMemo(() => {
+    let data = [...allRows];
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter((row) =>
+        entity.searchFields.some((f) => String(row[f] ?? "").toLowerCase().includes(q)),
+      );
+    }
+
+    // Sort
+    if (sortColumns.length > 0) {
+      const sc = sortColumns[0]!;
+      data.sort((a, b) => {
+        const va = a[sc.columnKey], vb = b[sc.columnKey];
+        const field = entity.fields.find((f) => f.key === sc.columnKey);
+        const cmp = field?.type === "number" || field?.type === "currency"
+          ? (Number(va ?? 0) - Number(vb ?? 0))
+          : String(va ?? "").localeCompare(String(vb ?? ""));
+        return sc.direction === "DESC" ? -cmp : cmp;
+      });
+    }
+
+    setRows(data);
+    return data;
+  }, [allRows, searchQuery, sortColumns, entity]);
 
   const columns = visibleCols.map((key): Column<Row> => {
     const field = entity.fields.find((f) => f.key === key);
-    if (!field) return { key, name: key };
-
-    const editable = field.editable ?? false;
+    if (!field) return { key, name: key, resizable: true, sortable: true };
 
     return {
       key: field.key,
       name: field.label,
       width: field.width,
-      editable,
+      resizable: true,
+      sortable: field.sortable,
       renderCell: ({ row, column }: RenderCellProps<Row>) => {
         const value = row[column.key as keyof Row] as unknown;
         if (value == null) return <span className="text-muted-foreground/40">—</span>;
 
         if (field.type === "status") {
           const colors: Record<string, string> = {
-            draft: "bg-muted text-muted-foreground",
-            open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-            paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-            cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+            draft: "bg-muted text-muted-foreground", open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+            paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300", cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
             pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-            confirmed: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-            shipped: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
-            delivered: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
           };
           return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[String(value)] ?? "bg-muted text-muted-foreground"}`}>{value as string}</span>;
         }
 
-        if (field.type === "boolean") {
-          return value ? <span className="text-green-600 font-medium">✓</span> : <span className="text-muted-foreground/30">—</span>;
-        }
+        if (field.type === "boolean") return value ? <span className="text-green-600 font-medium">✓</span> : <span className="text-muted-foreground/30">—</span>;
 
         if (field.type === "currency") {
           const num = Number(value ?? 0);
           return <span className={`tabular-nums ${num < 0 ? "text-red-600" : ""}`}>${num.toFixed(2)}</span>;
         }
 
-        if (field.type === "number") {
-          return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
-        }
+        if (field.type === "number") return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;
 
         if (field.type === "date") {
           const d = value instanceof Date ? value : new Date(String(value));
+          if (isNaN(d.getTime())) return <span className="text-muted-foreground/40">—</span>;
           return <span>{d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>;
         }
 
@@ -118,25 +137,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
     };
   });
 
-  const onRowsChange = useCallback(
-    (newRows: Row[], { column, indexes }: { column: Column<Row>; indexes: number[] }) => {
-      const rowIdx = indexes[0] as number | undefined;
-      if (rowIdx == null) return;
-      const rowData = rows[rowIdx];
-      if (!rowData) return;
-
-      const newValue = newRows[rowIdx][column.key];
-      const recordId = rowData.id;
-
-      setRows(newRows);
-
-      invoke("commit_event", {
-        eventType: `${entity.id}.field_updated`,
-        payload: JSON.stringify({ id: recordId, field: column.key, value: newValue }),
-      }).catch((err) => console.error("[EntityGrid] commit_event failed:", err));
-    },
-    [entity, rows],
-  );
+  const onSortColumnsChange = useCallback((sorts: SortColumn[]) => setSortColumns(sorts), []);
 
   const onCreateRecord = useCallback(async () => {
     const newId = crypto.randomUUID?.() ?? `${Date.now()}`;
@@ -151,63 +152,132 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       }
     });
 
-    setRows((prev) => [newRow, ...prev]);
-
-    try {
-      await invoke("commit_event", {
-        eventType: `${entity.id}.created`,
-        payload: JSON.stringify(newRow),
-      });
-    } catch (err) {
-      console.error(`[EntityGrid] create failed:`, err);
+    // Simple entities: inline create. Complex: detail panel create.
+    const isComplex = entity.detail.tabs.length > 2;
+    if (isComplex) {
+      setSelectedRow(newRow);
+      setDetailMode("create");
+      setDetailOpen(true);
+    } else {
+      setAllRows((prev) => [newRow, ...prev]);
+      try { await invoke("commit_event", { eventType: `${entity.id}.created`, payload: JSON.stringify(newRow) }); } catch {}
     }
   }, [entity]);
+
+  const onRowClick = useCallback((row: Row) => {
+    setSelectedRow({ ...row });
+    setDetailMode("edit");
+    setDetailOpen(true);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && detailOpen) { setDetailOpen(false); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") { e.preventDefault(); onCreateRecord(); return; }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [detailOpen, onCreateRecord]);
 
   return (
     <div className="flex h-full">
       <div className="flex-1 min-w-0 flex flex-col">
+        {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/30">
-          <button
-            onClick={onCreateRecord}
-            className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            + Nuevo
+          {/* View selector */}
+          {entity.views.length > 1 && (
+            <div className="flex rounded-md border overflow-hidden text-xs">
+              {entity.views.map((v) => (
+                <button key={v.id} onClick={() => setViewId(v.id)}
+                  className={`px-2.5 py-1 transition-colors ${viewId === v.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative ml-2">
+            <Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              className="w-44 pl-7 pr-2 py-1 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="Buscar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <span className="absolute right-2 top-1 text-[10px] text-muted-foreground">
+                {processedRows.length} / {allRows.length}
+              </span>
+            )}
+          </div>
+
+          <button onClick={onCreateRecord}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors ml-auto">
+            <Plus className="w-3 h-3 inline mr-1" />Nuevo
           </button>
-          <span className="text-xs text-muted-foreground ml-auto">{rows.length} registros</span>
+          <span className="text-xs text-muted-foreground">{processedRows.length} registros</span>
         </div>
 
+        {/* Grid */}
         <div className="flex-1 min-h-0">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                Cargando...
-              </div>
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 15 }).map((_, i) => (
+                <div key={i} className="h-8 bg-muted/50 rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
+              ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : processedRows.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-3">
-              <span>Aún no hay {entity.label.toLowerCase()}</span>
-              <button onClick={onCreateRecord} className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
-                Crear primer registro
-              </button>
+              {searchQuery ? (
+                <>
+                  <Search className="w-8 h-8 opacity-30" />
+                  <span>No hay resultados para "{searchQuery}"</span>
+                  <button onClick={() => setSearchQuery("")} className="text-xs text-primary hover:underline">Limpiar búsqueda</button>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center">
+                    <Plus className="w-6 h-6 opacity-40" />
+                  </div>
+                  <span>Aún no hay {entity.label.toLowerCase()}</span>
+                  <button onClick={onCreateRecord} className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
+                    Crear primer registro
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <DataGrid
               columns={columns}
-              rows={rows}
-              onRowsChange={onRowsChange}
-              onRowClick={(row) => { setSelectedRow(row); setDetailOpen(true); }}
+              rows={processedRows}
+              sortColumns={sortColumns}
+              onSortColumnsChange={onSortColumnsChange}
+              onRowClick={onRowClick}
               className="rdg h-full border-0"
+              rowHeight={36}
+              headerRowHeight={36}
             />
           )}
         </div>
       </div>
+
       {detailOpen && selectedRow && (
         <DetailPanel
           entity={entity}
           row={selectedRow}
           role={role}
-          onClose={() => setDetailOpen(false)}
+          isCreate={detailMode === "create"}
+          onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
+          onNavigate={detailMode === "create" ? undefined : (dir) => {
+            const idx = processedRows.findIndex((r) => r.id === selectedRow.id);
+            const next = idx + dir;
+            if (next >= 0 && next < processedRows.length) {
+              setSelectedRow({ ...processedRows[next]! });
+              setDetailMode("edit");
+            }
+          }}
         />
       )}
     </div>

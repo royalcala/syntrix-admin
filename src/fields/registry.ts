@@ -1,4 +1,5 @@
-import type { GridCell, GridCellKind } from "@glideapps/glide-data-grid";
+import type { GridCell } from "@glideapps/glide-data-grid";
+import { GridCellKind } from "@glideapps/glide-data-grid";
 import type { ReactNode } from "react";
 
 export interface FieldTypePlugin {

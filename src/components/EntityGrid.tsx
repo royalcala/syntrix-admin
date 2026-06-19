@@ -31,7 +31,6 @@ export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps)
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
-  const [isLoading, setIsLoading] = useState(true);
   const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);

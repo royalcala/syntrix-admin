@@ -16,6 +16,7 @@
     "@radix-ui/react-tooltip": "^1.2.10",
     "@tanstack/db": "^0.6.9",
     "@tanstack/react-db": "^0.1.87",
+    "@tanstack/react-form": "^1.0.7",
     "@tanstack/react-table": "^8.21.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",

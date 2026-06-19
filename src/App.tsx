@@ -95,7 +95,7 @@ function Layout({
             <button key={item.href}
               onClick={() => { navigate(item.href); setSidebarOpen(false); }}
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                location.pathname === item.href || location.pathname.startsWith(item.href)
+                location.pathname === item.href || (item.href === "/devices" && location.pathname === "/") || location.pathname.startsWith(item.href)
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}>

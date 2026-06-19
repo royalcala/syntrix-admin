@@ -4,6 +4,7 @@ import DataEditor, {
   type GridCell,
   type Item,
   GridCellKind,
+  type Theme as GlideTheme,
 } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
 import { listen } from "@tauri-apps/api/event";
@@ -179,6 +180,37 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
 
   const rowCount = rows.length;
 
+  const gridTheme: Partial<GlideTheme> = {
+    accentColor: "hsl(var(--primary))",
+    accentLight: "hsl(var(--primary) / 0.1)",
+    textDark: "hsl(var(--foreground))",
+    textMedium: "hsl(var(--muted-foreground))",
+    textLight: "hsl(var(--muted-foreground) / 0.6)",
+    textBubble: "hsl(var(--primary-foreground))",
+    bgIconHeader: "hsl(var(--muted))",
+    fgIconHeader: "hsl(var(--foreground))",
+    textHeader: "hsl(var(--foreground))",
+    textHeaderSelected: "hsl(var(--primary-foreground) / 0.9)",
+    bgCell: "hsl(var(--background))",
+    bgCellMedium: "hsl(var(--muted) / 0.5)",
+    bgHeader: "hsl(var(--muted))",
+    bgHeaderHasFocus: "hsl(var(--accent))",
+    bgHeaderHovered: "hsl(var(--accent) / 0.5)",
+    bgBubble: "hsl(var(--primary))",
+    bgBubbleSelected: "hsl(var(--primary) / 0.8)",
+    bgSearchResult: "hsl(var(--warning) / 0.3)",
+    borderColor: "hsl(var(--border))",
+    drilldownBorder: "hsl(var(--border))",
+    linkColor: "hsl(var(--primary))",
+    textGroupHeader: "hsl(var(--muted-foreground))",
+    bgGroupHeader: "hsl(var(--muted))",
+    fontFamily: "inherit",
+    headerFontStyle: "600 13px",
+    baseFontStyle: "13px",
+    editorFontSize: "13px",
+    lineHeight: 1.4,
+  };
+
   return (
     <div className="flex h-full">
       <div className="flex-1 min-w-0 flex flex-col">
@@ -219,6 +251,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
               getCellContent={getCellContent}
               onCellEdited={onCellEdited}
               onRowClicked={onRowClicked}
+              theme={gridTheme as Record<string, unknown>}
               rowMarkers="number"
               smoothScrollX
               smoothScrollY

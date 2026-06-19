@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import DataGrid, { type Column, type RenderCellProps, type RenderEditCellProps, textEditor, SelectColumn } from "react-data-grid";
+import DataGrid, { type Column, type RenderCellProps } from "react-data-grid";
 import "react-data-grid/lib/styles.css";
 import { listen } from "@tauri-apps/api/event";
 import type { EntityDefinition } from "../fields/registry";
@@ -76,7 +76,6 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       name: field.label,
       width: field.width,
       editable,
-      editor: editable ? textEditor : undefined,
       renderCell: ({ row, column }: RenderCellProps<Row>) => {
         const value = row[column.key as keyof Row] as unknown;
         const renderer = getFieldRenderer(field.type);
@@ -95,9 +94,10 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
 
   const onRowsChange = useCallback(
     (newRows: Row[], { column, indexes }: { column: Column<Row>; indexes: number[] }) => {
-      const rowIdx = indexes[0];
+      const rowIdx = indexes[0] as number | undefined;
+      if (rowIdx == null) return;
       const rowData = rows[rowIdx];
-      if (!rowIdx || !rowData) return;
+      if (!rowData) return;
 
       const newValue = newRows[rowIdx][column.key];
       const recordId = rowData.id;

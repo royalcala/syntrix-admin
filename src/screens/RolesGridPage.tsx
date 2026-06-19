@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { EntityGrid } from "../components/EntityGrid";
 import { rolesEntity } from "../entities/roles";
-import { createRolesCollection } from "../collections/admin-collections";
+import { createRolesCollection } from "../collections/roles";
 
 export function RolesGridPage({ org }: { org: string }) {
   const collection = useMemo(() => createRolesCollection(org), [org]);

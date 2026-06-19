@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { EntityGrid } from "../components/EntityGrid";
 import { devicesEntity } from "../entities/devices";
-import { createDevicesCollection } from "../collections/admin-collections";
+import { createDevicesCollection } from "../collections/devices";
 
 export function DevicesGridPage({ org }: { org: string }) {
   const collection = useMemo(() => createDevicesCollection(org), [org]);

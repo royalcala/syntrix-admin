@@ -1,23 +1,25 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from "lucide-react";
+import { Users, Shield, Building2, Plus, Menu, X, Terminal } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./components/ui/select";
 import { Sheet } from "./components/ui/sheet";
-import { Dashboard } from "./screens/Dashboard";
-import { Devices } from "./screens/Devices";
-import { Roles } from "./screens/Roles";
 import { CreateOrg } from "./screens/CreateOrg";
 import { Logs } from "./screens/Logs";
 import { ShareDialog } from "./screens/ShareDialog";
-import { AdminWorkspace } from "./screens/AdminWorkspace";
 import { DevicesGridPage } from "./screens/DevicesGridPage";
 import { RolesGridPage } from "./screens/RolesGridPage";
 import { OrgsGridPage } from "./screens/OrgsGridPage";
 import { ThemeToggle } from "./components/ThemeToggle";
 
 type OrgInfo = { name: string };
+
+const navItems = [
+  { href: "/devices", label: "Dispositivos", icon: Users },
+  { href: "/roles", label: "Roles", icon: Shield },
+  { href: "/orgs", label: "Organizaciones", icon: Building2 },
+];
 
 export default function App() {
   const [nodeId, setNodeId] = useState<string>("");
@@ -66,16 +68,8 @@ function Layout({
     onOrgsChanged();
   }
 
-  const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/devices", label: "Devices", icon: Users },
-    { href: "/roles", label: "Roles", icon: Shield },
-    { href: "/w/devices", label: "Workspace", icon: Grid3X3 },
-    { href: "/logs", label: "Logs", icon: Terminal },
-  ];
-
-  const currentLabel = navItems.find((i) => location.pathname === i.href || (i.href.startsWith("/w/") && location.pathname.startsWith("/w/")))?.label ?? "Dashboard";
-  const isWorkspaceRoute = location.pathname.startsWith("/w/");
+  const currentLabel = navItems.find((i) => location.pathname === i.href || location.pathname.startsWith(i.href))?.label ?? "Dashboard";
+  const isEntityRoute = navItems.some((i) => location.pathname === i.href);
 
   const sidebarContent = (
     <>
@@ -91,30 +85,30 @@ function Layout({
 
       <div className="px-3 py-4">
         <Select value={activeOrg} onValueChange={(v) => { setActiveOrg(v); setSidebarOpen(false); }}>
-          <SelectTrigger className="mb-4">
-            <SelectValue placeholder="Select org" />
-          </SelectTrigger>
+          <SelectTrigger className="mb-4"><SelectValue placeholder="Select org" /></SelectTrigger>
           <SelectContent>
-            {orgs.map((o) => (
-              <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>
-            ))}
+            {orgs.map((o) => (<SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>))}
           </SelectContent>
         </Select>
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => (
-            <button
-              key={item.href}
+            <button key={item.href}
               onClick={() => { navigate(item.href); setSidebarOpen(false); }}
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                location.pathname === item.href || (item.href.startsWith("/w/") && location.pathname.startsWith("/w/"))
+                location.pathname === item.href || location.pathname.startsWith(item.href)
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
+              }`}>
+              <item.icon size={18} /> {item.label}
             </button>
           ))}
+          <button key="/logs"
+            onClick={() => { navigate("/logs"); setSidebarOpen(false); }}
+            className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
+              location.pathname === "/logs" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            }`}>
+            <Terminal size={18} /> Logs
+          </button>
         </nav>
       </div>
 
@@ -156,17 +150,13 @@ function Layout({
           </div>
         </header>
 
-        <main className={isWorkspaceRoute ? "h-[calc(100vh-4rem)]" : "p-4 md:p-6"}>
+        <main className={isEntityRoute ? "h-[calc(100vh-4rem)]" : "p-4 md:p-6"}>
           <Routes>
-            <Route index element={<Dashboard org={activeOrg} />} />
-            <Route path="/devices" element={<Devices org={activeOrg} />} />
-            <Route path="/roles" element={<Roles org={activeOrg} />} />
+            <Route index element={<DevicesGridPage org={activeOrg} />} />
+            <Route path="/devices" element={<DevicesGridPage org={activeOrg} />} />
+            <Route path="/roles" element={<RolesGridPage org={activeOrg} />} />
+            <Route path="/orgs" element={<OrgsGridPage />} />
             <Route path="/logs" element={<Logs />} />
-            <Route path="/w/*" element={<AdminWorkspace org={activeOrg} />}>
-              <Route path="devices" element={<DevicesGridPage org={activeOrg} />} />
-              <Route path="roles" element={<RolesGridPage org={activeOrg} />} />
-              <Route path="orgs" element={<OrgsGridPage />} />
-            </Route>
           </Routes>
         </main>
       </div>

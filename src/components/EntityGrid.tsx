@@ -18,7 +18,7 @@ import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
 
 interface EntityGridProps {
-  entity: EntityDefinition;
+  entity: EntityDefinition & { loadData?: () => Promise<Array<Record<string, unknown>>> };
   activeView?: string;
   role?: string;
   orgId?: string;
@@ -31,7 +31,6 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailMode, setDetailMode] = useState<"edit" | "create">("edit");
-  const [refreshKey, setRefreshKey] = useState(0);
   const [viewId, setViewId] = useState(activeView ?? entity.views[0]?.id ?? "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -44,9 +43,9 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   // Reactive data from TanStack DB collection
   const { data: liveData, isLoading } = useLiveQuery((q) => {
     return q.from({ row: entity.collection as never });
-  }, [refreshKey]);
+  });
 
-  const allRows = useMemo(() => {
+  const rows = useMemo(() => {
     const raw = (liveData as Array<Record<string, unknown>> | undefined) ?? [];
     return raw.map((r) => ({ ...r, id: (r.id ?? crypto.randomUUID()) as string })) as Row[];
   }, [liveData]);
@@ -95,7 +94,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   );
 
   const table = useReactTable({
-    data: allRows,
+    data: rows,
     columns,
     state: { sorting, columnFilters, columnVisibility },
     onSortingChange: setSorting,
@@ -241,7 +240,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
                   role={role}
                   isCreate={detailMode === "create"}
                   onSaveCreate={onSaveCreate}
-          onClose={() => { setDetailOpen(false); if (detailMode === "create") { setRefreshKey((k) => k + 1); } }}
+                  onClose={() => { setDetailOpen(false); }}
                   onNavigate={detailMode === "create" ? undefined : (dir) => {
                 const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
                 const next = idx + dir;

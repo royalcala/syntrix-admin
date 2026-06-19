@@ -16,9 +16,10 @@ interface EntityGridProps {
   entity: EntityDefinition;
   activeView?: string;
   role?: string;
+  dataLoader?: () => Promise<Array<Record<string, unknown>>>;
 }
 
-export function EntityGrid({ entity, activeView, role }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, dataLoader }: EntityGridProps) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -34,19 +35,23 @@ export function EntityGrid({ entity, activeView, role }: EntityGridProps) {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown>; type: string } }>; hasMore: boolean; cursor: unknown }>("sync_pull", { orgId: "", cursor: null });
-      const data = result.batch
-        .map((e) => e.eventEncoded.payload)
-        .filter((p): p is Record<string, unknown> => p != null && typeof p === "object");
+      let data: Array<Record<string, unknown>>;
+
+      if (dataLoader) {
+        data = await dataLoader();
+      } else {
+        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Record<string, unknown>; type: string } }> }>("sync_pull", { orgId: "", cursor: null });
+        data = result.batch.map((e) => e.eventEncoded.payload).filter((p): p is Record<string, unknown> => p != null && typeof p === "object");
+      }
+
       setRows(data);
       setIsLoading(false);
     } catch (err) {
       console.error(`[EntityGrid] loadData failed for ${entity.id}:`, err);
       setIsLoading(false);
-      // Show empty state instead of failing silently
       setRows([]);
     }
-  }, [entity.id]);
+  }, [dataLoader, entity.id]);
 
   // Initial load
   useEffect(() => {

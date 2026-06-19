@@ -1,75 +1,21 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal } from "lucide-react";
-import { Button } from "./components/ui/button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./components/ui/select";
-import { Sheet } from "./components/ui/sheet";
-import { Dashboard } from "./screens/Dashboard";
-import { Devices } from "./screens/Devices";
-import { Roles } from "./screens/Roles";
-import { CreateOrg } from "./screens/CreateOrg";
-import { Logs } from "./screens/Logs";
-import { ShareDialog } from "./screens/ShareDialog";
-import { ThemeToggle } from "./components/ThemeToggle";
+import { LayoutDashboard, Users, Shield, Plus, Menu, X, Terminal, Grid3X3 } from "lucide-react";
 
-type OrgInfo = { name: string };
-
-export default function App() {
-  const [nodeId, setNodeId] = useState<string>("");
-  const [orgs, setOrgs] = useState<OrgInfo[]>([]);
-  const [activeOrg, setActiveOrg] = useState<string>("");
-
-  useEffect(() => {
-    invoke<string>("get_node_id").then(setNodeId);
-    loadOrgs();
-  }, []);
-
-  async function loadOrgs() {
-    try {
-      const list: OrgInfo[] = await invoke("list_orgs");
-      setOrgs(list);
-      if (list.length > 0 && !activeOrg) setActiveOrg(list[0].name);
-    } catch {}
-  }
-
-  const hasOrgs = orgs.length > 0;
-
-  return hasOrgs ? (
-    <Layout nodeId={nodeId} orgs={orgs} activeOrg={activeOrg} setActiveOrg={setActiveOrg} onOrgsChanged={loadOrgs} />
-  ) : (
-    <CreateOrg nodeId={nodeId} onCreated={loadOrgs} />
-  );
-}
-
-function Layout({
-  nodeId, orgs, activeOrg, setActiveOrg, onOrgsChanged,
-}: {
-  nodeId: string; orgs: OrgInfo[]; activeOrg: string; setActiveOrg: (o: string) => void; onOrgsChanged: () => void;
-}) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [newOrgOpen, setNewOrgOpen] = useState(false);
-  const [newOrgName, setNewOrgName] = useState("");
-
-  async function createNewOrg() {
-    const name = newOrgName.trim() || "new-org";
-    await invoke("create_org", { name });
-    setActiveOrg(name);
-    setNewOrgName("");
-    setNewOrgOpen(false);
-    onOrgsChanged();
-  }
+...
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/devices", label: "Devices", icon: Users },
     { href: "/roles", label: "Roles", icon: Shield },
+    { href: "/w/devices", label: "Workspace", icon: Grid3X3 },
     { href: "/logs", label: "Logs", icon: Terminal },
   ];
 
-  const currentLabel = navItems.find((i) => i.href === location.pathname)?.label ?? "Dashboard";
+  const currentLabel = navItems.find((i) => location.pathname === i.href || (i.href.startsWith("/w/") && location.pathname.startsWith("/w/")))?.label ?? "Dashboard";
+
+  const isWorkspaceRoute = location.pathname.startsWith("/w/");
 
   const sidebarContent = (
     <>
@@ -100,7 +46,7 @@ function Layout({
               key={item.href}
               onClick={() => { navigate(item.href); setSidebarOpen(false); }}
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                location.pathname === item.href
+                location.pathname === item.href || (item.href.startsWith("/w/") && location.pathname.startsWith("/w/"))
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
@@ -153,12 +99,17 @@ function Layout({
           </div>
         </header>
 
-        <main className="p-4 md:p-6">
+        <main className={isWorkspaceRoute ? "h-[calc(100vh-4rem)]" : "p-4 md:p-6"}>
           <Routes>
             <Route index element={<Dashboard org={activeOrg} />} />
             <Route path="/devices" element={<Devices org={activeOrg} />} />
             <Route path="/roles" element={<Roles org={activeOrg} />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/w/*" element={<AdminWorkspace org={activeOrg} />}>
+              <Route path="devices" element={<DevicesGridPage org={activeOrg} />} />
+              <Route path="roles" element={<RolesGridPage org={activeOrg} />} />
+              <Route path="orgs" element={<OrgsGridPage />} />
+            </Route>
           </Routes>
         </main>
       </div>

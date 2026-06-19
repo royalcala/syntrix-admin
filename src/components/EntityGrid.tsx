@@ -11,6 +11,8 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { Plus, Search, ArrowUp, ArrowDown } from "lucide-react";
+import { useHotkeys } from "@tanstack/react-hotkeys";
+import { useLiveQuery } from "@tanstack/react-db";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table";
 import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
@@ -21,12 +23,11 @@ interface EntityGridProps {
   activeView?: string;
   role?: string;
   orgId?: string;
-  onCreateRecord?: (row: Row) => Promise<Row>;
 }
 
 interface Row { id: string; [key: string]: unknown; }
 
-export function EntityGrid({ entity, activeView, role, orgId, onCreateRecord: customCreate }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, orgId }: EntityGridProps) {
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -41,26 +42,15 @@ export function EntityGrid({ entity, activeView, role, orgId, onCreateRecord: cu
   const view = entity.views.find((v) => v.id === viewId) ?? entity.views[0];
   const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
 
-  // Data comes from TanStack DB collection (iroh or tauri adapter)
-  // The collection's sync() handles initial load + reactivity
-  useEffect(() => {
-    const collection = entity.collection as { toArray?: () => Array<Record<string, unknown>> };
-    async function init() {
-      try {
-        setIsLoading(true);
-        // Wait briefly for collection sync to populate, then read
-        await new Promise((r) => setTimeout(r, 100));
-        const data = collection.toArray?.() ?? [];
-        setAllRows(data as Row[]);
-        setIsLoading(false);
-      } catch (err) {
-        console.error(`[EntityGrid] init failed for ${entity.id}:`, err);
-        setIsLoading(false);
-        setAllRows([]);
-      }
-    }
-    init();
-  }, [entity.id, entity.collection]);
+  // Reactive data from TanStack DB collection
+  const { data: liveData, isLoading } = useLiveQuery((q) => {
+    return q.from({ row: entity.collection as never });
+  });
+
+  const allRows = useMemo(() => {
+    const raw = (liveData as Array<Record<string, unknown>> | undefined) ?? [];
+    return raw.map((r) => ({ ...r, id: (r.id ?? crypto.randomUUID()) as string })) as Row[];
+  }, [liveData]);
 
   const columns = useMemo(() =>
     visibleCols.map((key) => {
@@ -248,9 +238,8 @@ export function EntityGrid({ entity, activeView, role, orgId, onCreateRecord: cu
               entity={entity}
               row={selectedRow}
               role={role}
-              isCreate={detailMode === "create"}
-              onSaveCreate={customCreate}
-              onClose={() => { setDetailOpen(false); }}
+          isCreate={detailMode === "create"}
+          onClose={() => { setDetailOpen(false); }}
               onNavigate={detailMode === "create" ? undefined : (dir) => {
                 const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
                 const next = idx + dir;

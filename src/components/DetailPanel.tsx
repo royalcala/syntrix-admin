@@ -1,12 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { useForm } from "@tanstack/react-form";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./ui/select";
-import { Switch } from "./ui/switch";
 import { toast } from "sonner";
-import { invoke } from "@tauri-apps/api/core";
 import type { EntityDefinition } from "../fields/registry";
 
 interface DetailPanelProps {
@@ -16,10 +11,9 @@ interface DetailPanelProps {
   onClose: () => void;
   onNavigate?: (dir: number) => void;
   isCreate?: boolean;
-  onSaveCreate?: (row: Record<string, unknown>) => Promise<void>;
 }
 
-export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, onSaveCreate }: DetailPanelProps) {
+export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate }: DetailPanelProps) {
   const [activeTab, setActiveTab] = useState(isCreate ? "data" : entity.detail.tabs[0]?.key ?? "data");
   const [editMode, setEditMode] = useState(!!isCreate);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -28,11 +22,14 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, 
     defaultValues: row as Record<string, unknown>,
     onSubmit: async ({ value }) => {
       try {
-        if (isCreate && onSaveCreate) {
-          await onSaveCreate(value);
+        const collection = entity.collection as {
+          insert?: (item: unknown) => void;
+          update?: (id: string, updater: (draft: Record<string, unknown>) => void) => void;
+        };
+        if (isCreate) {
+          collection.insert?.(value);
         } else {
-          const eventType = isCreate ? `${entity.id}.created` : `${entity.id}.updated`;
-          await invoke("commit_event", { eventType, payload: JSON.stringify(value) });
+          collection.update?.(value.id as string, (draft) => { Object.assign(draft, value); });
         }
         toast.success(isCreate ? `${entity.label} creado` : "Cambios guardados");
         setEditMode(false);

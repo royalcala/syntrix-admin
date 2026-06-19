@@ -15,11 +15,13 @@ interface EntityGridProps {
   role?: string;
   orgId?: string;
   dataLoader?: () => Promise<Array<Record<string, unknown>>>;
+  onCreateRecord?: (row: Row) => Promise<Row>;
+  onUpdateField?: (recordId: string, field: string, value: unknown) => Promise<void>;
 }
 
 interface Row { id: string; [key: string]: unknown; }
 
-export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCreateRecord: customCreate, onUpdateField }: EntityGridProps) {
   const [rows, setRows] = useState<Row[]>([]);
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
@@ -153,16 +155,10 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
       }
     });
 
-    // Simple entities: inline create. Complex: detail panel create.
-    const isComplex = entity.detail.tabs.length > 2;
-    if (isComplex) {
-      setSelectedRow(newRow);
-      setDetailMode("create");
-      setDetailOpen(true);
-    } else {
-      setAllRows((prev) => [newRow, ...prev]);
-      try { await invoke("commit_event", { eventType: `${entity.id}.created`, payload: JSON.stringify(newRow) }); } catch {}
-    }
+    // All creates go through DetailPanel (supports Select, Switch, DatePicker)
+    setSelectedRow(newRow);
+    setDetailMode("create");
+    setDetailOpen(true);
   }, [entity]);
 
   const onRowClick = useCallback((row: Row) => {
@@ -270,6 +266,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader }: Enti
           row={selectedRow}
           role={role}
           isCreate={detailMode === "create"}
+          onSaveCreate={customCreate}
           onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
           onNavigate={detailMode === "create" ? undefined : (dir) => {
             const idx = processedRows.findIndex((r) => r.id === selectedRow.id);

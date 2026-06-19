@@ -83,7 +83,7 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate }
               {!field.editable && <span className="text-[10px] text-muted-foreground/50">(automático)</span>}
             </label>
 
-            {editMode && field.editable ? (
+            {editMode && (field.editable || isCreate) ? (
               <div>
                 {field.type === "status" || field.type === "select" ? (
                   <Select value={String(value ?? "")} onValueChange={(v) => handleFieldChange(field.key, v)}>

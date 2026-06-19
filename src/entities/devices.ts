@@ -9,7 +9,12 @@ export const devicesEntity: EntityDefinition = {
     { key: "node_id", label: "Node ID", type: "text", width: 180, editable: false, sortable: true },
     { key: "name", label: "Nombre", type: "text", width: 180, editable: true, sortable: true },
     { key: "person", label: "Persona", type: "text", width: 150, editable: true, sortable: true },
-    { key: "role", label: "Rol", type: "text", width: 140, editable: true, sortable: true },
+    { key: "role", label: "Rol", type: "select", width: 140, editable: true, sortable: true, options: [
+      { label: "Admin", value: "admin" },
+      { label: "Ventas", value: "sales" },
+      { label: "Contabilidad", value: "contabilidad" },
+      { label: "RH", value: "hr" },
+    ]},
     { key: "active", label: "Activo", type: "boolean", width: 80, editable: true, sortable: true },
   ],
   views: [

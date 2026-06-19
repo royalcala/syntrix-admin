@@ -10,25 +10,23 @@ import {
   type ColumnFiltersState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { listen } from "@tauri-apps/api/event";
-import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, ArrowUp, ArrowDown } from "lucide-react";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table";
 import type { EntityDefinition } from "../fields/registry";
 import { DetailPanel } from "./DetailPanel";
-import { invoke } from "@tauri-apps/api/core";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 
 interface EntityGridProps {
   entity: EntityDefinition;
   activeView?: string;
   role?: string;
   orgId?: string;
-  dataLoader?: () => Promise<Array<Record<string, unknown>>>;
   onCreateRecord?: (row: Row) => Promise<Row>;
 }
 
 interface Row { id: string; [key: string]: unknown; }
 
-export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCreateRecord: customCreate }: EntityGridProps) {
+export function EntityGrid({ entity, activeView, role, orgId, onCreateRecord: customCreate }: EntityGridProps) {
   const [allRows, setAllRows] = useState<Row[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -43,38 +41,26 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
   const view = entity.views.find((v) => v.id === viewId) ?? entity.views[0];
   const visibleCols = view?.visibleColumns ?? entity.fields.map((f) => f.key);
 
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      let data: Row[];
-
-      if (dataLoader) {
-        data = (await dataLoader()) as Row[];
-      } else {
-        const result = await invoke<{ batch: Array<{ eventEncoded: { payload: Row; type: string } }> }>("sync_pull", { orgId: orgId ?? "", cursor: null });
-        data = result.batch.map((e) => ({ ...(e.eventEncoded.payload as Record<string, unknown>), id: (e.eventEncoded.payload as Record<string, unknown>).id ?? crypto.randomUUID() })) as Row[];
-      }
-
-      setAllRows(data);
-      setIsLoading(false);
-    } catch (err) {
-      console.error(`[EntityGrid] loadData failed for ${entity.id}:`, err);
-      setIsLoading(false);
-      setAllRows([]);
-    }
-  }, [dataLoader, entity.id, orgId]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
+  // Data comes from TanStack DB collection (iroh or tauri adapter)
+  // The collection's sync() handles initial load + reactivity
   useEffect(() => {
-    const unlisten = listen<{ org_id: string; event: { type: string; payload: Record<string, unknown> } }>("data-changed", (event) => {
-      const entityType = event.payload.event.type?.split(".")[0];
-      if (entityType === entity.id || event.payload.event.type?.startsWith(`${entity.id}.`)) {
-        loadData();
+    const collection = entity.collection as { toArray?: () => Array<Record<string, unknown>> };
+    async function init() {
+      try {
+        setIsLoading(true);
+        // Wait briefly for collection sync to populate, then read
+        await new Promise((r) => setTimeout(r, 100));
+        const data = collection.toArray?.() ?? [];
+        setAllRows(data as Row[]);
+        setIsLoading(false);
+      } catch (err) {
+        console.error(`[EntityGrid] init failed for ${entity.id}:`, err);
+        setIsLoading(false);
+        setAllRows([]);
       }
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, [entity.id, loadData]);
+    }
+    init();
+  }, [entity.id, entity.collection]);
 
   const columns = useMemo(() =>
     visibleCols.map((key) => {
@@ -155,14 +141,8 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
     setDetailOpen(true);
   }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && detailOpen) { setDetailOpen(false); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === "n") { e.preventDefault(); onCreateRecord(); return; }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [detailOpen, onCreateRecord]);
+  useHotkeys("Escape", () => { if (detailOpen) setDetailOpen(false); }, [detailOpen]);
+  useHotkeys("mod+n", (e) => { e.preventDefault(); onCreateRecord(); }, [onCreateRecord]);
 
   const rows = table.getRowModel().rows;
 
@@ -270,7 +250,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
               role={role}
               isCreate={detailMode === "create"}
               onSaveCreate={customCreate}
-              onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
+              onClose={() => { setDetailOpen(false); }}
               onNavigate={detailMode === "create" ? undefined : (dir) => {
                 const idx = rows.findIndex((r) => r.original.id === selectedRow.id);
                 const next = idx + dir;
@@ -283,7 +263,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
           </div>
           {/* Mobile: bottom sheet */}
           <div className="lg:hidden fixed inset-0 z-50">
-            <div className="fixed inset-0 bg-black/50" onClick={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }} />
+            <div className="fixed inset-0 bg-black/50" onClick={() => { setDetailOpen(false); }} />
             <div className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-background rounded-t-xl border-t shadow-xl overflow-auto animate-in slide-in-from-bottom">
               <DetailPanel
                 entity={entity}
@@ -291,7 +271,7 @@ export function EntityGrid({ entity, activeView, role, orgId, dataLoader, onCrea
                 role={role}
                 isCreate={detailMode === "create"}
                 onSaveCreate={customCreate}
-                onClose={() => { setDetailOpen(false); if (detailMode === "create") loadData(); }}
+              onClose={() => { setDetailOpen(false); }}
               />
             </div>
           </div>

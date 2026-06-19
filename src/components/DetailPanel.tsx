@@ -150,3 +150,62 @@ export function DetailPanel({ entity, row, role, onClose, onNavigate, isCreate, 
       )}
     </div>
   );
+
+  const renderHistoryTab = () => (
+    <div className="p-4 text-sm text-muted-foreground text-center">Historial de cambios — próximamente</div>
+  );
+
+  const primaryFieldValue = String(form.getFieldValue(entity.fields[0]?.key ?? "id") ?? "");
+
+  return (
+    <div className="w-[420px] border-l bg-background flex flex-col shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-1 min-w-0">
+          {onNavigate && !isCreate && (
+            <>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onNavigate(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onNavigate(1)}><ChevronRight className="w-4 h-4" /></Button>
+            </>
+          )}
+          <span className="text-sm font-medium truncate">
+            {isCreate ? `Nuevo ${entity.label.toLowerCase()}` : primaryFieldValue || "Sin título"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {!isCreate && entity.fields.some((f) => f.editable) && (
+            <Button variant="ghost" size="sm" onClick={() => setEditMode(!editMode)}>{editMode ? "Ver" : "Editar"}</Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}><X className="w-4 h-4" /></Button>
+        </div>
+      </div>
+      {!isCreate && (
+        <div className="flex border-b px-2">
+          {entity.detail.tabs.map((tab) => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={`px-3 py-2 text-sm border-b-2 transition-colors ${activeTab === tab.key ? "border-primary text-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex-1 overflow-auto">
+        {activeTab === "data" && renderDataTab()}
+        {activeTab === "history" && renderHistoryTab()}
+        {activeTab !== "data" && activeTab !== "history" && (
+          <div className="p-4 text-sm text-muted-foreground text-center">
+            {entity.detail.tabs.find((t) => t.key === activeTab)?.label} — próximamente
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    draft: "bg-muted text-muted-foreground", open: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    paid: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300", cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+    pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+  };
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] ?? "bg-muted text-muted-foreground"}`}>{status}</span>;
+}

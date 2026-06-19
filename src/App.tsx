@@ -8,9 +8,8 @@ import { Sheet } from "./components/ui/sheet";
 import { CreateOrg } from "./screens/CreateOrg";
 import { Logs } from "./screens/Logs";
 import { ShareDialog } from "./screens/ShareDialog";
-import { DevicesGridPage } from "./screens/DevicesGridPage";
-import { RolesGridPage } from "./screens/RolesGridPage";
-import { OrgsGridPage } from "./screens/OrgsGridPage";
+import { DevicesPage } from "./screens/DevicesPage";
+import { RolesPage } from "./screens/RolesPage";
 import { ThemeToggle } from "./components/ThemeToggle";
 
 type OrgInfo = { name: string };
@@ -152,10 +151,10 @@ function Layout({
 
         <main className={isEntityRoute ? "h-[calc(100vh-4rem)]" : "p-4 md:p-6"}>
           <Routes>
-            <Route index element={<DevicesGridPage org={activeOrg} />} />
-            <Route path="/devices" element={<DevicesGridPage org={activeOrg} />} />
-            <Route path="/roles" element={<RolesGridPage org={activeOrg} />} />
-            <Route path="/orgs" element={<OrgsGridPage />} />
+            <Route index element={<DevicesPage org={activeOrg} />} />
+            <Route path="/devices" element={<DevicesPage org={activeOrg} />} />
+            <Route path="/roles" element={<RolesPage org={activeOrg} />} />
+            <Route path="/orgs" element={<OrgsListPage />} />
             <Route path="/logs" element={<Logs />} />
           </Routes>
         </main>
@@ -180,6 +179,28 @@ function Layout({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function OrgsListPage() {
+  const [orgs, setOrgs] = useState<string[]>([]);
+  useEffect(() => { invoke<string[]>("list_orgs").then(setOrgs); }, []);
+  return (
+    <div className="p-4 md:p-6">
+      <h2 className="text-lg font-semibold mb-4">Organizaciones</h2>
+      <table className="w-full text-sm">
+        <thead><tr className="border-b text-left text-muted-foreground">
+          <th className="py-2">Nombre</th>
+        </tr></thead>
+        <tbody>
+          {orgs.map((name) => (
+            <tr key={name} className="border-b hover:bg-muted/30">
+              <td className="py-2">{name}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

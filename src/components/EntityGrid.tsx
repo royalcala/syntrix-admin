@@ -45,7 +45,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
     return q.from({ row: entity.collection as never });
   });
 
-  const rows = useMemo(() => {
+  const allRows = useMemo(() => {
     const raw = (liveData as Array<Record<string, unknown>> | undefined) ?? [];
     return raw.map((r) => ({ ...r, id: (r.id ?? crypto.randomUUID()) as string })) as Row[];
   }, [liveData]);
@@ -94,7 +94,7 @@ export function EntityGrid({ entity, activeView, role, orgId, onSaveCreate }: En
   );
 
   const table = useReactTable({
-    data: rows,
+    data: allRows,
     columns,
     state: { sorting, columnFilters, columnVisibility },
     onSortingChange: setSorting,
